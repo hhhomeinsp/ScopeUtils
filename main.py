@@ -97,65 +97,50 @@ def ai_qa_analysis(text):
 
 @st.cache_data
 def get_property_info_from_rentcast(address):
-    if "RENTCAST_API_KEY" not in api_keys:
-        return {
-            "error": "RentCast API key is missing. Property information is unavailable.",
-            "square_footage": "N/A",
-            "year_built": "N/A",
-            "bedrooms": "N/A",
-            "bathrooms": "N/A",
-            "property_type": "N/A",
-            "last_sale_date": "N/A",
-            "last_sale_price": "N/A"
-        }
+    # First, let's check if the API key is available
+    if "RENTCAST_API_KEY" not in st.secrets:
+        st.error("Rentcast API key is not set in Streamlit secrets.")
+        return {"error": "Rentcast API key is missing. Contact the administrator."}
+
+    api_key = st.secrets["RENTCAST_API_KEY"]
     
+    # Log the API key (first few characters) for debugging
+    st.write(f"API Key (first 5 chars): {api_key[:5]}...")
+
     try:
         url = "https://api.rentcast.io/v1/properties"
         
         params = {
             "address": address,
-            "limit": 1  # We only need one property
+            "limit": 1
         }
         
         headers = {
             "Accept": "application/json",
-            "X-Api-Key": api_keys["RENTCAST_API_KEY"]
+            "X-Api-Key": api_key
         }
 
-        st.write(f"Requesting data from Rentcast API for address: {address}")  # Debug log
+        st.write(f"Requesting data from Rentcast API for address: {address}")
+        st.write(f"Request URL: {url}")
+        st.write(f"Request Headers: {headers}")
+        st.write(f"Request Params: {params}")
         
         response = requests.get(url, params=params, headers=headers)
         
-        st.write(f"Response status code: {response.status_code}")  # Debug log
-        st.write(f"Response content: {response.text}")  # Debug log
+        st.write(f"Response status code: {response.status_code}")
+        st.write(f"Response headers: {response.headers}")
+        st.write(f"Response content: {response.text}")
 
-        if response.status_code == 400:
-            return {
-                "error": "The address provided was not recognized by the Rentcast API. Please check the address format and try again.",
-                "square_footage": "N/A",
-                "year_built": "N/A",
-                "bedrooms": "N/A",
-                "bathrooms": "N/A",
-                "property_type": "N/A",
-                "last_sale_date": "N/A",
-                "last_sale_price": "N/A"
-            }
+        if response.status_code == 401:
+            st.error("Authentication failed. Please check your Rentcast API key.")
+            return {"error": "Authentication failed. Please check your Rentcast API key."}
 
         response.raise_for_status()
 
         data = response.json()
 
         if not data.get('properties'):
-            return {
-                "error": "No properties found for the given address",
-                "square_footage": "N/A",
-                "year_built": "N/A",
-                "bedrooms": "N/A",
-                "bathrooms": "N/A",
-                "property_type": "N/A",
-                "last_sale_date": "N/A",
-                "last_sale_price": "N/A"
-            }
+            return {"error": "No properties found for the given address"}
 
         property_info = data['properties'][0]
 
@@ -175,40 +160,10 @@ def get_property_info_from_rentcast(address):
 
     except requests.exceptions.RequestException as e:
         st.error(f"Error making request to Rentcast API: {str(e)}")
-        return {
-            "error": f"Failed to retrieve property information: {str(e)}",
-            "square_footage": "N/A",
-            "year_built": "N/A",
-            "bedrooms": "N/A",
-            "bathrooms": "N/A",
-            "property_type": "N/A",
-            "last_sale_date": "N/A",
-            "last_sale_price": "N/A"
-        }
-    except KeyError as e:
-        st.error(f"Unexpected response format from Rentcast API: {str(e)}")
-        return {
-            "error": "Unexpected response format from Rentcast API",
-            "square_footage": "N/A",
-            "year_built": "N/A",
-            "bedrooms": "N/A",
-            "bathrooms": "N/A",
-            "property_type": "N/A",
-            "last_sale_date": "N/A",
-            "last_sale_price": "N/A"
-        }
+        return {"error": f"Failed to retrieve property information: {str(e)}"}
     except Exception as e:
         st.error(f"Unexpected error in get_property_info_from_rentcast: {str(e)}")
-        return {
-            "error": f"An unexpected error occurred: {str(e)}",
-            "square_footage": "N/A",
-            "year_built": "N/A",
-            "bedrooms": "N/A",
-            "bathrooms": "N/A",
-            "property_type": "N/A",
-            "last_sale_date": "N/A",
-            "last_sale_price": "N/A"
-        }
+        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 # Function to gather property and weather information
 @st.cache_data
