@@ -102,12 +102,20 @@ def get_property_info_from_rentcast(address):
             "error": "RentCast API key is missing. Property information is unavailable.",
             "square_footage": "N/A",
             "year_built": "N/A",
-            "stories": "N/A"
+            "bedrooms": "N/A",
+            "bathrooms": "N/A",
+            "property_type": "N/A",
+            "last_sale_date": "N/A",
+            "last_sale_price": "N/A"
         }
     
     try:
-        encoded_address = quote(address)
-        url = f"https://api.rentcast.io/v1/properties?address={encoded_address}"
+        url = "https://api.rentcast.io/v1/properties"
+        
+        params = {
+            "address": address,
+            "limit": 1  # We only need one property
+        }
         
         headers = {
             "Accept": "application/json",
@@ -115,9 +123,8 @@ def get_property_info_from_rentcast(address):
         }
 
         st.write(f"Requesting data from Rentcast API for address: {address}")  # Debug log
-        st.write(f"Encoded address: {encoded_address}")  # Debug log
         
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, params=params, headers=headers)
         
         st.write(f"Response status code: {response.status_code}")  # Debug log
         st.write(f"Response content: {response.text}")  # Debug log
@@ -127,7 +134,11 @@ def get_property_info_from_rentcast(address):
                 "error": "The address provided was not recognized by the Rentcast API. Please check the address format and try again.",
                 "square_footage": "N/A",
                 "year_built": "N/A",
-                "stories": "N/A"
+                "bedrooms": "N/A",
+                "bathrooms": "N/A",
+                "property_type": "N/A",
+                "last_sale_date": "N/A",
+                "last_sale_price": "N/A"
             }
 
         response.raise_for_status()
@@ -139,7 +150,11 @@ def get_property_info_from_rentcast(address):
                 "error": "No properties found for the given address",
                 "square_footage": "N/A",
                 "year_built": "N/A",
-                "stories": "N/A"
+                "bedrooms": "N/A",
+                "bathrooms": "N/A",
+                "property_type": "N/A",
+                "last_sale_date": "N/A",
+                "last_sale_price": "N/A"
             }
 
         property_info = data['properties'][0]
@@ -147,7 +162,15 @@ def get_property_info_from_rentcast(address):
         return {
             "square_footage": property_info.get('squareFootage', 'N/A'),
             "year_built": property_info.get('yearBuilt', 'N/A'),
-            "stories": property_info.get('stories', 'N/A')
+            "bedrooms": property_info.get('bedrooms', 'N/A'),
+            "bathrooms": property_info.get('bathrooms', 'N/A'),
+            "property_type": property_info.get('propertyType', 'N/A'),
+            "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
+            "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
+            "lot_size": property_info.get('lotSize', 'N/A'),
+            "zoning": property_info.get('zoning', 'N/A'),
+            "features": property_info.get('features', {}),
+            "owner_occupied": property_info.get('ownerOccupied', 'N/A')
         }
 
     except requests.exceptions.RequestException as e:
@@ -156,7 +179,11 @@ def get_property_info_from_rentcast(address):
             "error": f"Failed to retrieve property information: {str(e)}",
             "square_footage": "N/A",
             "year_built": "N/A",
-            "stories": "N/A"
+            "bedrooms": "N/A",
+            "bathrooms": "N/A",
+            "property_type": "N/A",
+            "last_sale_date": "N/A",
+            "last_sale_price": "N/A"
         }
     except KeyError as e:
         st.error(f"Unexpected response format from Rentcast API: {str(e)}")
@@ -164,7 +191,11 @@ def get_property_info_from_rentcast(address):
             "error": "Unexpected response format from Rentcast API",
             "square_footage": "N/A",
             "year_built": "N/A",
-            "stories": "N/A"
+            "bedrooms": "N/A",
+            "bathrooms": "N/A",
+            "property_type": "N/A",
+            "last_sale_date": "N/A",
+            "last_sale_price": "N/A"
         }
     except Exception as e:
         st.error(f"Unexpected error in get_property_info_from_rentcast: {str(e)}")
@@ -172,7 +203,11 @@ def get_property_info_from_rentcast(address):
             "error": f"An unexpected error occurred: {str(e)}",
             "square_footage": "N/A",
             "year_built": "N/A",
-            "stories": "N/A"
+            "bedrooms": "N/A",
+            "bathrooms": "N/A",
+            "property_type": "N/A",
+            "last_sale_date": "N/A",
+            "last_sale_price": "N/A"
         }
 
 # Function to gather property and weather information
@@ -281,9 +316,23 @@ def main():
         if 'property_info' in st.session_state:
             if 'error' in st.session_state['property_info']:
                 st.error(st.session_state['property_info']['error'])
-            st.write(f"Square Footage: {st.session_state['property_info'].get('square_footage', 'N/A')}")
-            st.write(f"Year Built: {st.session_state['property_info'].get('year_built', 'N/A')}")
-            st.write(f"Stories: {st.session_state['property_info'].get('stories', 'N/A')}")
+            else:
+                st.write(f"Property Type: {st.session_state['property_info'].get('property_type', 'N/A')}")
+                st.write(f"Square Footage: {st.session_state['property_info'].get('square_footage', 'N/A')}")
+                st.write(f"Year Built: {st.session_state['property_info'].get('year_built', 'N/A')}")
+                st.write(f"Bedrooms: {st.session_state['property_info'].get('bedrooms', 'N/A')}")
+                st.write(f"Bathrooms: {st.session_state['property_info'].get('bathrooms', 'N/A')}")
+                st.write(f"Lot Size: {st.session_state['property_info'].get('lot_size', 'N/A')} sq ft")
+                st.write(f"Zoning: {st.session_state['property_info'].get('zoning', 'N/A')}")
+                st.write(f"Last Sale Date: {st.session_state['property_info'].get('last_sale_date', 'N/A')}")
+                st.write(f"Last Sale Price: ${st.session_state['property_info'].get('last_sale_price', 'N/A')}")
+                st.write(f"Owner Occupied: {'Yes' if st.session_state['property_info'].get('owner_occupied') else 'No'}")
+                
+                if 'features' in st.session_state['property_info']:
+                    st.subheader("Property Features")
+                    features = st.session_state['property_info']['features']
+                    for key, value in features.items():
+                        st.write(f"{key.replace('Type', '').title()}: {value}")
         else:
             st.write("Enter an address in the sidebar to get property information.")
 
