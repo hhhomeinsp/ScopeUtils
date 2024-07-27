@@ -1,3 +1,4 @@
+import streamlit as st
 import os
 import pdfplumber
 import openai
@@ -9,17 +10,26 @@ import http.client
 import json
 import urllib.parse
 
-# Initialize variables for API keys
-OPENAI_API_KEY = None
-OPENCAGE_API_KEY = None
-RAPIDAPI_KEY = None
+# Debugging function to safely check secrets
+def check_secret(key):
+    try:
+        value = st.secrets[key]
+        return f"Secret '{key}' is {'set' if value else 'empty'}"
+    except Exception as e:
+        return f"Error accessing secret '{key}': {str(e)}"
 
-# Function to check if a secret is available
+# Print debugging information
+st.write("Debugging Information:")
+st.write(check_secret("OPENAI_API_KEY"))
+st.write(check_secret("OPENCAGE_API_KEY"))
+st.write(check_secret("RAPIDAPI_KEY"))
+
+# Function to safely get a secret
 def get_secret(key):
     try:
         return st.secrets[key]
-    except KeyError:
-        st.error(f"Missing API key: {key}. Some features may be disabled.")
+    except Exception as e:
+        st.error(f"Error accessing secret '{key}': {str(e)}")
         return None
 
 # Set up API keys using Streamlit secrets
@@ -30,6 +40,8 @@ RAPIDAPI_KEY = get_secret("RAPIDAPI_KEY")
 # Set OpenAI API key if available
 if OPENAI_API_KEY:
     openai.api_key = OPENAI_API_KEY
+else:
+    st.warning("OpenAI API key is not set. Some features may not work.")
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
