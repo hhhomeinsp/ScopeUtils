@@ -1,13 +1,16 @@
 import streamlit as st
 import requests
 from urllib.parse import quote
+import json
 
 # Initialize API keys
 api_keys = {}
+missing_keys = []
 for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY", "RENTCAST_API_KEY"]:
     try:
         api_keys[key] = st.secrets[key]
     except KeyError:
+        missing_keys.append(key)
         st.warning(f"Missing API key: {key}. Some features may be disabled.")
 
 def geocode_address(address, api_key):
@@ -35,42 +38,19 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
     encoded_address = quote(address)
     url = f"{base_url}?address={encoded_address}"
 
-    st.write(f"Searching for specific address: {address}")
-    st.write(f"Request URL: {url}")
-    st.write(f"Request Headers: {headers}")
-
     try:
         response = requests.get(url, headers=headers)
-        st.write(f"Response status code: {response.status_code}")
-        st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
-
-        response.raise_for_status()  # Raise an exception for bad status codes
-
-        try:
-            response_data = response.json()
-        except json.JSONDecodeError:
-            st.error("Received a non-JSON response from the API")
-            return {"error": "Invalid response format from Rentcast API"}
+        response.raise_for_status()
+        response_data = response.json()
 
         if response_data.get('properties'):
             property_info = response_data['properties'][0]
         else:
             # If specific address fails, try broader search
-            st.write(f"Specific address not found. Trying broader search in {city}, {state}")
             url = f"{base_url}?city={quote(city)}&state={quote(state)}&limit=1"
-            st.write(f"New request URL: {url}")
-
             response = requests.get(url, headers=headers)
-            st.write(f"Response status code: {response.status_code}")
-            st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
-
             response.raise_for_status()
-
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                st.error("Received a non-JSON response from the API")
-                return {"error": "Invalid response format from Rentcast API"}
+            response_data = response.json()
 
             if response_data.get('properties'):
                 property_info = response_data['properties'][0]
@@ -97,11 +77,14 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
         }
 
     except requests.exceptions.RequestException as e:
-        st.error(f"Error making request to Rentcast API: {str(e)}")
         return {"error": f"Failed to retrieve property information: {str(e)}"}
 
 def main():
     st.title("Property Information Lookup")
+
+    if missing_keys:
+        st.error("One or more API keys are missing. Please check the API keys and try again.")
+        return
 
     with st.form(key='property_form'):
         street = st.text_input("Street Address:", key="street_input")
