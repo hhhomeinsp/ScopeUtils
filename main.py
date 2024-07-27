@@ -36,39 +36,69 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
     url = f"{base_url}?address={encoded_address}"
 
     st.write(f"Searching for specific address: {address}")
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code == 200 and response.json().get('properties'):
-        property_info = response.json()['properties'][0]
-    else:
-        # If specific address fails, try broader search
-        st.write(f"Specific address not found. Trying broader search in {city}, {state}")
-        url = f"{base_url}?city={quote(city)}&state={quote(state)}&limit=1"
-        response = requests.get(url, headers=headers)
-        
-        if response.status_code == 200 and response.json().get('properties'):
-            property_info = response.json()['properties'][0]
-            st.warning("Exact property not found. Showing information for a similar property in the area.")
-        else:
-            return {"error": "No property information found for the given location."}
+    st.write(f"Request URL: {url}")
+    st.write(f"Request Headers: {headers}")
 
-    # Extract and return relevant information
-    return {
-        "address": property_info.get('formattedAddress', 'N/A'),
-        "property_type": property_info.get('propertyType', 'N/A'),
-        "bedrooms": property_info.get('bedrooms', 'N/A'),
-        "bathrooms": property_info.get('bathrooms', 'N/A'),
-        "square_footage": property_info.get('squareFootage', 'N/A'),
-        "lot_size": property_info.get('lotSize', 'N/A'),
-        "year_built": property_info.get('yearBuilt', 'N/A'),
-        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
-        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
-        "zoning": property_info.get('zoning', 'N/A'),
-        "features": property_info.get('features', {}),
-        "owner_occupied": property_info.get('ownerOccupied', 'N/A'),
-        "latitude": property_info.get('latitude', 'N/A'),
-        "longitude": property_info.get('longitude', 'N/A')
-    }
+    try:
+        response = requests.get(url, headers=headers)
+        st.write(f"Response status code: {response.status_code}")
+        st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
+
+        response.raise_for_status()  # Raise an exception for bad status codes
+
+        try:
+            response_data = response.json()
+        except json.JSONDecodeError:
+            st.error("Received a non-JSON response from the API")
+            return {"error": "Invalid response format from Rentcast API"}
+
+        if response_data.get('properties'):
+            property_info = response_data['properties'][0]
+        else:
+            # If specific address fails, try broader search
+            st.write(f"Specific address not found. Trying broader search in {city}, {state}")
+            url = f"{base_url}?city={quote(city)}&state={quote(state)}&limit=1"
+            st.write(f"New request URL: {url}")
+
+            response = requests.get(url, headers=headers)
+            st.write(f"Response status code: {response.status_code}")
+            st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
+
+            response.raise_for_status()
+
+            try:
+                response_data = response.json()
+            except json.JSONDecodeError:
+                st.error("Received a non-JSON response from the API")
+                return {"error": "Invalid response format from Rentcast API"}
+
+            if response_data.get('properties'):
+                property_info = response_data['properties'][0]
+                st.warning("Exact property not found. Showing information for a similar property in the area.")
+            else:
+                return {"error": "No property information found for the given location."}
+
+        # Extract and return relevant information
+        return {
+            "address": property_info.get('formattedAddress', 'N/A'),
+            "property_type": property_info.get('propertyType', 'N/A'),
+            "bedrooms": property_info.get('bedrooms', 'N/A'),
+            "bathrooms": property_info.get('bathrooms', 'N/A'),
+            "square_footage": property_info.get('squareFootage', 'N/A'),
+            "lot_size": property_info.get('lotSize', 'N/A'),
+            "year_built": property_info.get('yearBuilt', 'N/A'),
+            "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
+            "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
+            "zoning": property_info.get('zoning', 'N/A'),
+            "features": property_info.get('features', {}),
+            "owner_occupied": property_info.get('ownerOccupied', 'N/A'),
+            "latitude": property_info.get('latitude', 'N/A'),
+            "longitude": property_info.get('longitude', 'N/A')
+        }
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error making request to Rentcast API: {str(e)}")
+        return {"error": f"Failed to retrieve property information: {str(e)}"}
 
 def main():
     st.title("Property Information Lookup")
