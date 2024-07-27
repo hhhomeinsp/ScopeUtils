@@ -18,12 +18,6 @@ def check_secret(key):
     except Exception as e:
         return f"Error accessing secret '{key}': {str(e)}"
 
-# Print debugging information
-st.write("Debugging Information:")
-st.write(check_secret("OPENAI_API_KEY"))
-st.write(check_secret("OPENCAGE_API_KEY"))
-st.write(check_secret("RAPIDAPI_KEY"))
-
 # Function to safely get a secret
 def get_secret(key):
     try:
