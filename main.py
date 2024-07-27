@@ -7,10 +7,14 @@ from datetime import datetime
 import io
 import chardet
 
-# Set up OpenAI API key using Streamlit secrets
-OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
-RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
+# Check for secrets and set up OpenAI API key
+try:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
+    RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
+except KeyError as e:
+    st.error(f"Missing API key: {e}")
+    st.stop()
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
