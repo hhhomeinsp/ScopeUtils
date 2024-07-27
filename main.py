@@ -9,10 +9,27 @@ import http.client
 import json
 import urllib.parse
 
+# Initialize variables for API keys
+OPENAI_API_KEY = None
+OPENCAGE_API_KEY = None
+RAPIDAPI_KEY = None
+
+# Function to check if a secret is available
+def get_secret(key):
+    try:
+        return st.secrets[key]
+    except KeyError:
+        st.error(f"Missing API key: {key}. Some features may be disabled.")
+        return None
+
 # Set up API keys using Streamlit secrets
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
 OPENCAGE_API_KEY = get_secret("OPENCAGE_API_KEY")
 RAPIDAPI_KEY = get_secret("RAPIDAPI_KEY")
+
+# Set OpenAI API key if available
+if OPENAI_API_KEY:
+    openai.api_key = OPENAI_API_KEY
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
