@@ -10,7 +10,7 @@ import json
 import urllib.parse
 
 # Set up API keys using Streamlit secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
 RAPIDAPI_KEY = st.secrets["RAPIDAPI_KEY"]
 
