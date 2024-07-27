@@ -97,16 +97,18 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
     st.error(f"Failed to retrieve property information. Status code: {response.status_code}")
     st.error(f"Response content: {response.text}")
     return {"error": f"Failed to retrieve property information. Status code: {response.status_code}"}
-    
+
 def main():
     st.title("Property Information Lookup")
 
-    street = st.text_input("Street Address:")
-    city = st.text_input("City:")
-    state = st.text_input("State:")
-    zip_code = st.text_input("ZIP Code:")
+    with st.form(key='property_form'):
+        street = st.text_input("Street Address:", key="street_input")
+        city = st.text_input("City:", key="city_input")
+        state = st.text_input("State:", key="state_input")
+        zip_code = st.text_input("ZIP Code:", key="zip_input")
+        submit_button = st.form_submit_button(label='Get Property Info')
 
-    if st.button("Get Property Info"):
+    if submit_button:
         if street and city and state and zip_code:
             rentcast_api_key = api_keys.get("RENTCAST_API_KEY")
             opencage_api_key = api_keys.get("OPENCAGE_API_KEY")
@@ -130,9 +132,6 @@ def main():
                             st.write(f"{key.replace('_', ' ').title()}: {value}")
         else:
             st.warning("Please fill in all address fields.")
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
