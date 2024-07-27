@@ -5,6 +5,7 @@ import openai
 import requests
 from datetime import datetime
 import io
+import chardet
 
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -43,7 +44,25 @@ def extract_and_save_text_from_pdf(file):
 
 # Function to read text file
 def read_text_file(file):
-    return file.getvalue().decode("utf-8")
+    content = file.read()
+    
+    # Try to detect the file encoding
+    detected = chardet.detect(content)
+    encoding = detected['encoding']
+    
+    try:
+        # Try to decode with the detected encoding
+        return content.decode(encoding)
+    except UnicodeDecodeError:
+        # If that fails, try some common encodings
+        for enc in ['utf-8', 'latin-1', 'ascii']:
+            try:
+                return content.decode(enc)
+            except UnicodeDecodeError:
+                continue
+    
+    # If all else fails, decode with 'latin-1' (which should never fail)
+    return content.decode('latin-1')
 
 # Function to translate text
 def translate_text(text, target_language):
