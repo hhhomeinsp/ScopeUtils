@@ -6,16 +6,28 @@ import requests
 from datetime import datetime
 import io
 import chardet
+from urllib.parse import quote
 
+# Initialize a dictionary to store available API keys
+api_keys = {}
+
+# Debug: Print all available keys in st.secrets
 st.write("Available keys in st.secrets:", list(st.secrets.keys()))
 
-try:
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-    OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
-    RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
-except KeyError as e:
-    st.error(f"Missing API key: {e}")
+# Try to get each API key, storing them if available
+for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY", "RENTCAST_API_KEY"]:
+    try:
+        api_keys[key] = st.secrets[key]
+    except KeyError:
+        st.warning(f"Missing API key: {key}. Some features may be disabled.")
+
+# Check if we have the minimum required keys to run the app
+if not all(key in api_keys for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY"]):
+    st.error("Critical API keys are missing. The app cannot function properly.")
     st.stop()
+
+# Set OpenAI API key
+openai.api_key = api_keys.get("OPENAI_API_KEY")
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
@@ -64,7 +76,7 @@ def read_text_file(file):
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -75,7 +87,7 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
@@ -86,21 +98,30 @@ def ai_qa_analysis(text):
 # Function to get property information from RentCast API
 @st.cache_data
 def get_property_info_from_rentcast(address):
+    if "RENTCAST_API_KEY" not in api_keys:
+        return {
+            "error": "RentCast API key is missing. Property information is unavailable.",
+            "square_footage": "N/A",
+            "year_built": "N/A",
+            "stories": "N/A"
+        }
+    
     try:
-        url = f"https://api.rentcast.io/v1/properties?address={address}"
+        encoded_address = quote(address)
+        url = f"https://api.rentcast.io/v1/properties?address={encoded_address}"
+        
         headers = {
-            "X-Api-Key": RENTCAST_API_KEY
+            "Accept": "application/json",
+            "X-Api-Key": api_keys["RENTCAST_API_KEY"]
         }
 
         response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            st.write(f"Failed to retrieve property information: {response.status_code}")
-            st.write(response.json())
-            return {"error": "Failed to retrieve property information"}
+        response.raise_for_status()
 
         data = response.json()
-        if not data['properties']:
-            return {"error": "No properties found"}
+
+        if not data.get('properties'):
+            return {"error": "No properties found for the given address"}
 
         property_info = data['properties'][0]
 
@@ -110,44 +131,57 @@ def get_property_info_from_rentcast(address):
             "stories": property_info.get('stories', 'N/A')
         }
 
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error making request to Rentcast API: {str(e)}")
+        return {"error": f"Failed to retrieve property information: {str(e)}"}
+    except KeyError as e:
+        st.error(f"Unexpected response format from Rentcast API: {str(e)}")
+        return {"error": "Unexpected response format from Rentcast API"}
     except Exception as e:
-        return {"error": str(e)}
+        st.error(f"Unexpected error in get_property_info_from_rentcast: {str(e)}")
+        return {"error": f"An unexpected error occurred: {str(e)}"}
 
 # Function to gather property and weather information
 @st.cache_data
 def gather_info(address):
-    geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={OPENCAGE_API_KEY}"
-    geocode_response = requests.get(geocode_url)
-    geocode_data = geocode_response.json()
-    
-    if geocode_data['results']:
-        lat = geocode_data['results'][0]['geometry']['lat']
-        lon = geocode_data['results'][0]['geometry']['lng']
+    if "OPENCAGE_API_KEY" not in api_keys:
+        return {"error": "OpenCage API key is missing"}, {"error": "Weather data unavailable"}
 
-        property_info = get_property_info_from_rentcast(address)
+    geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_keys['OPENCAGE_API_KEY']}"
+    try:
+        geocode_response = requests.get(geocode_url)
+        geocode_response.raise_for_status()
+        geocode_data = geocode_response.json()
+        
+        if geocode_data['results']:
+            lat = geocode_data['results'][0]['geometry']['lat']
+            lon = geocode_data['results'][0]['geometry']['lng']
 
-        weather_url = f"https://api.weather.gov/points/{lat},{lon}"
-        weather_response = requests.get(weather_url)
-        if weather_response.status_code == 200:
+            property_info = get_property_info_from_rentcast(address)
+
+            weather_url = f"https://api.weather.gov/points/{lat},{lon}"
+            weather_response = requests.get(weather_url)
+            weather_response.raise_for_status()
             weather_data = weather_response.json()
+            
             forecast_url = weather_data['properties']['forecast']
             forecast_response = requests.get(forecast_url)
-            if forecast_response.status_code == 200:
-                forecast_data = forecast_response.json()
-                current_period = forecast_data['properties']['periods'][0]
-                
-                weather_info = f"Temperature: {current_period['temperature']}°{current_period['temperatureUnit']}\n"
-                weather_info += f"Conditions: {current_period['shortForecast']}\n"
-                weather_info += f"Wind: {current_period['windSpeed']} {current_period['windDirection']}\n"
-                weather_info += f"Forecast: {current_period['detailedForecast']}"
-            else:
-                weather_info = "Weather forecast data unavailable"
-        else:
-            weather_info = "Weather data unavailable"
+            forecast_response.raise_for_status()
+            forecast_data = forecast_response.json()
+            
+            current_period = forecast_data['properties']['periods'][0]
+            
+            weather_info = f"Temperature: {current_period['temperature']}°{current_period['temperatureUnit']}\n"
+            weather_info += f"Conditions: {current_period['shortForecast']}\n"
+            weather_info += f"Wind: {current_period['windSpeed']} {current_period['windDirection']}\n"
+            weather_info += f"Forecast: {current_period['detailedForecast']}"
 
-        return property_info, weather_info
-    else:
-        return {"error": "Location not found"}, {"error": "Weather data unavailable"}
+            return property_info, weather_info
+        else:
+            return {"error": "Location not found"}, {"error": "Weather data unavailable"}
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching data: {str(e)}")
+        return {"error": "Failed to fetch location or weather data"}, {"error": "Weather data unavailable"}
 
 # Streamlit app
 def main():
@@ -221,7 +255,7 @@ def main():
     with tab4:
         st.header("Weather Information")
         if 'weather_info' in st.session_state:
-            if 'error' in st.session_state['weather_info']:
+            if isinstance(st.session_state['weather_info'], dict) and 'error' in st.session_state['weather_info']:
                 st.error(st.session_state['weather_info']['error'])
             else:
                 st.write(st.session_state['weather_info'])
