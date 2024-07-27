@@ -55,12 +55,16 @@ def gather_info(address):
         lat = geocode_data['results'][0]['geometry']['lat']
         lon = geocode_data['results'][0]['geometry']['lng']
         
-        # Use OpenAI to search for property information
+        # Get OpenStreetMap data
+        osm_url = f"https://www.openstreetmap.org/api/0.6/map?bbox={lon-0.001},{lat-0.001},{lon+0.001},{lat+0.001}"
+        osm_response = requests.get(osm_url)
+        
+        # Use OpenAI to interpret OSM data and estimate property information
         property_info = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an AI assistant tasked with finding property information."},
-                {"role": "user", "content": f"Find the square footage, year built, and number of stories for the property at {address}. If you can't find exact information, provide estimates based on similar properties in the area."}
+                {"role": "system", "content": "You are an AI assistant tasked with estimating property information based on location and OpenStreetMap data."},
+                {"role": "user", "content": f"Based on the address '{address}' and the following OpenStreetMap data, estimate the square footage, year built, and number of stories for the property. If you can't determine exact information, provide reasonable estimates based on the location and surrounding area. OpenStreetMap data: {osm_response.text[:1000]}"}
             ]
         ).choices[0].message.content
 
