@@ -25,7 +25,7 @@ def save_text_to_file(text, filename):
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": f"You are a translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -36,7 +36,7 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are an AI assistant tasked with analyzing a report. Provide a brief summary and key insights from the text."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary and key insights:\n\n{text}"}
