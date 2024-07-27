@@ -10,9 +10,9 @@ import json
 import urllib.parse
 
 # Set up API keys using Streamlit secrets
-OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
-RAPIDAPI_KEY = st.secrets["RAPIDAPI_KEY"]
+OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
+OPENCAGE_API_KEY = get_secret("OPENCAGE_API_KEY")
+RAPIDAPI_KEY = get_secret("RAPIDAPI_KEY")
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
