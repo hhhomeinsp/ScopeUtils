@@ -194,14 +194,20 @@ def create_property_report(property_info, weather_info):
     report = "# Property and Weather Report\n\n"
     
     report += "## Property Information\n"
-    for key, value in property_info.items():
-        if key != "error":
-            report += f"- **{key.replace('_', ' ').title()}:** {value}\n"
+    if isinstance(property_info, dict):
+        for key, value in property_info.items():
+            if key != "error":
+                report += f"- **{key.replace('_', ' ').title()}:** {value}\n"
+    else:
+        report += f"- {property_info}\n"
     
     report += "\n## Current Weather\n"
-    for key, value in weather_info.items():
-        if key != "error":
-            report += f"- **{key}:** {value}\n"
+    if isinstance(weather_info, dict):
+        for key, value in weather_info.items():
+            if key != "error":
+                report += f"- **{key}:** {value}\n"
+    else:
+        report += f"- {weather_info}\n"
     
     return report
 
@@ -267,16 +273,11 @@ def main():
     with tab3:
         st.header("Property & Weather Report")
         if 'property_info' in st.session_state and 'weather_info' in st.session_state:
-            if 'error' in st.session_state['property_info'] or 'error' in st.session_state['weather_info']:
-                if 'error' in st.session_state['property_info']:
-                    st.error(st.session_state['property_info']['error'])
-                if 'error' in st.session_state['weather_info']:
-                    st.error(st.session_state['weather_info']['error'])
-            else:
-                report = create_property_report(st.session_state['property_info'], st.session_state['weather_info'])
-                st.markdown(report)
-                
-                # Display location on a map if coordinates are available
+            report = create_property_report(st.session_state['property_info'], st.session_state['weather_info'])
+            st.markdown(report)
+            
+            # Display location on a map if coordinates are available
+            if isinstance(st.session_state['property_info'], dict) and 'latitude' in st.session_state['property_info'] and 'longitude' in st.session_state['property_info']:
                 if (st.session_state['property_info']['latitude'] != 'N/A' and 
                     st.session_state['property_info']['longitude'] != 'N/A'):
                     st.subheader("Property Location")
