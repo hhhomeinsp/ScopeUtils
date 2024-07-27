@@ -88,8 +88,47 @@ def ai_qa_analysis(text):
 
 # Function to gather property and weather information
 def gather_info(address):
-    # (The rest of the function remains the same as in the previous version)
-    ...
+    # Use OpenCage Geocoding API
+    geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={OPENCAGE_API_KEY}"
+    geocode_response = requests.get(geocode_url)
+    geocode_data = geocode_response.json()
+    
+    if geocode_data['results']:
+        lat = geocode_data['results'][0]['geometry']['lat']
+        lon = geocode_data['results'][0]['geometry']['lng']
+        
+        # Use OpenAI to generate property information
+        property_info = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an AI assistant tasked with estimating property information."},
+                {"role": "user", "content": f"Based on the address '{address}', estimate the square footage, year built, and number of stories for the property. Provide reasonable estimates based on the location and surrounding area."}
+            ]
+        ).choices[0].message.content
+
+        # Get weather data from National Weather Service API
+        weather_url = f"https://api.weather.gov/points/{lat},{lon}"
+        weather_response = requests.get(weather_url)
+        if weather_response.status_code == 200:
+            weather_data = weather_response.json()
+            forecast_url = weather_data['properties']['forecast']
+            forecast_response = requests.get(forecast_url)
+            if forecast_response.status_code == 200:
+                forecast_data = forecast_response.json()
+                current_period = forecast_data['properties']['periods'][0]
+                
+                weather_info = f"Temperature: {current_period['temperature']}°{current_period['temperatureUnit']}\n"
+                weather_info += f"Conditions: {current_period['shortForecast']}\n"
+                weather_info += f"Wind: {current_period['windSpeed']} {current_period['windDirection']}\n"
+                weather_info += f"Forecast: {current_period['detailedForecast']}"
+            else:
+                weather_info = "Weather forecast data unavailable"
+        else:
+            weather_info = "Weather data unavailable"
+
+        return property_info, weather_info
+    else:
+        return "Location not found", "Weather data unavailable"
 
 # Streamlit app
 def main():
