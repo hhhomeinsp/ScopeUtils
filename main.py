@@ -97,7 +97,7 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
     st.error(f"Failed to retrieve property information. Status code: {response.status_code}")
     st.error(f"Response content: {response.text}")
     return {"error": f"Failed to retrieve property information. Status code: {response.status_code}"}
-
+    
 def main():
     st.title("Property Information Lookup")
 
