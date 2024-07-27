@@ -1,5 +1,7 @@
 import streamlit as st
-import requests
+import http.client
+import json
+import urllib.parse
 
 # Initialize API keys
 api_keys = {}
@@ -16,27 +18,27 @@ def get_property_info_from_rapidapi(street, city, state, zip_code, rapidapi_key)
     if not rapidapi_key:
         return {"error": "RapidAPI key is missing. Property information is unavailable."}
 
-    base_url = "https://realty-mole-property-api.p.rapidapi.com"
+    host = "realty-mole-property-api.p.rapidapi.com"
     headers = {
-        "x-rapidapi-key": rapidapi_key,
-        "x-rapidapi-host": "realty-mole-property-api.p.rapidapi.com"
+        'x-rapidapi-key': rapidapi_key,
+        'x-rapidapi-host': host
     }
 
     # Ensure correct address format: "Street, City, State Zip"
     address = f"{street.strip()}, {city.strip()}, {state.strip()} {zip_code.strip()}"
-    encoded_address = address.replace(" ", "-").replace(",", "")
+    encoded_address = urllib.parse.quote(address)
 
-    url = f"{base_url}/rentalListings/{encoded_address}"
-
-    # Debugging information
-    st.write(f"Encoded address: {encoded_address}")
-    st.write(f"Request URL: {url}")
-    st.write(f"Request Headers: {headers}")
-
+    conn = http.client.HTTPSConnection(host)
+    
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        response_data = response.json()
+        conn.request("GET", f"/properties?address={encoded_address}", headers=headers)
+        res = conn.getresponse()
+        data = res.read()
+        
+        if res.status != 200:
+            return {"error": f"API request failed with status code {res.status}: {data.decode('utf-8')}"}
+        
+        response_data = json.loads(data.decode("utf-8"))
 
         if response_data:
             property_info = response_data[0] if isinstance(response_data, list) else response_data
@@ -59,9 +61,11 @@ def get_property_info_from_rapidapi(street, city, state, zip_code, rapidapi_key)
             "longitude": property_info.get('longitude', 'N/A')
         }
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         st.error(f"Failed to retrieve property information: {str(e)}")
         return {"error": f"Failed to retrieve property information: {str(e)}"}
+    finally:
+        conn.close()
 
 def main():
     st.title("Property Information Lookup")
