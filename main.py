@@ -95,6 +95,25 @@ def ai_qa_analysis(text):
     )
     return response.choices[0].message.content
 
+def geocode_address(address):
+    if "OPENCAGE_API_KEY" not in st.secrets:
+        st.error("OpenCage API key is not set in Streamlit secrets.")
+        return None
+
+    api_key = st.secrets["OPENCAGE_API_KEY"]
+    url = f"https://api.opencagedata.com/geocode/v1/json?q={quote(address)}&key={api_key}"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if data['results']:
+            result = data['results'][0]
+            return f"{result['geometry']['lat']},{result['geometry']['lng']}"
+    except Exception as e:
+        st.error(f"Error geocoding address: {str(e)}")
+    return None
+
 @st.cache_data
 def get_property_info_from_rentcast(street, city, state, zip_code):
     if "RENTCAST_API_KEY" not in st.secrets:
@@ -108,7 +127,10 @@ def get_property_info_from_rentcast(street, city, state, zip_code):
         f"{street}, {city}, {state}, {zip_code}",
         f"{street.replace('Hwy', 'Highway')}, {city}, {state}, {zip_code}",
         f"{street}, {city}, {state} {zip_code}",
-        f"{street.replace('Hwy', 'Highway')}, {city}, {state} {zip_code}"
+        f"{street.replace('Hwy', 'Highway')}, {city}, {state} {zip_code}",
+        f"{street.replace('Highway', 'Hwy')}, {city}, {state}, {zip_code}",
+        f"{street.replace('Highway', 'Hwy')}, {city}, {state} {zip_code}",
+        f"{street.split(',')[0]}, {city}, {state}, {zip_code}"  # Try without any secondary address info
     ]
     
     for address in address_formats:
@@ -152,8 +174,39 @@ def get_property_info_from_rentcast(street, city, state, zip_code):
 
         except requests.exceptions.RequestException as e:
             st.error(f"Error making request to Rentcast API: {str(e)}")
-        
-    return {"error": "Failed to retrieve property information for all attempted address formats."}
+    
+    # If all address formats fail, try geocoding
+    st.warning("All address formats failed. Attempting to geocode the address...")
+    geocoded = geocode_address(f"{street}, {city}, {state}, {zip_code}")
+    if geocoded:
+        url = f"https://api.rentcast.io/v1/properties?address={geocoded}"
+        st.write(f"Trying geocoded coordinates: {geocoded}")
+        st.write(f"Request URL: {url}")
+        try:
+            response = requests.get(url, headers=headers)
+            st.write(f"Response status code: {response.status_code}")
+            st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('properties'):
+                    property_info = data['properties'][0]
+                    return {
+                        "square_footage": property_info.get('squareFootage', 'N/A'),
+                        "year_built": property_info.get('yearBuilt', 'N/A'),
+                        "bedrooms": property_info.get('bedrooms', 'N/A'),
+                        "bathrooms": property_info.get('bathrooms', 'N/A'),
+                        "property_type": property_info.get('propertyType', 'N/A'),
+                        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
+                        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
+                        "lot_size": property_info.get('lotSize', 'N/A'),
+                        "zoning": property_info.get('zoning', 'N/A'),
+                        "features": property_info.get('features', {}),
+                        "owner_occupied": property_info.get('ownerOccupied', 'N/A')
+                    }
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error making request to Rentcast API with geocoded coordinates: {str(e)}")
+    
+    return {"error": "Failed to retrieve property information for all attempted address formats and geocoding."}
 
 # Function to gather property and weather information
 @st.cache_data
