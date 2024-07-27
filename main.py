@@ -3,8 +3,7 @@ import os
 import PyPDF2
 import openai
 import requests
-from geopy.geocoders import Nominatim
-from bs4 import BeautifulSoup
+from datetime import datetime
 
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -47,12 +46,14 @@ def ai_qa_analysis(text):
 
 # Function to gather property and weather information
 def gather_info(address):
-    # Initialize geocoder
-    geolocator = Nominatim(user_agent="myGeocoder")
-    location = geolocator.geocode(address)
+    # Use OpenCage Geocoding API
+    geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={st.secrets['OPENCAGE_API_KEY']}"
+    geocode_response = requests.get(geocode_url)
+    geocode_data = geocode_response.json()
     
-    if location:
-        lat, lon = location.latitude, location.longitude
+    if geocode_data['results']:
+        lat = geocode_data['results'][0]['geometry']['lat']
+        lon = geocode_data['results'][0]['geometry']['lng']
         
         # Use OpenAI to search for property information
         property_info = openai.ChatCompletion.create(
@@ -63,15 +64,25 @@ def gather_info(address):
             ]
         ).choices[0].message.content
 
-        # Get weather data
-        weather_url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={st.secrets['OPENWEATHER_API_KEY']}&units=metric"
+        # Get weather data from National Weather Service API
+        weather_url = f"https://api.weather.gov/points/{lat},{lon}"
         weather_response = requests.get(weather_url)
-        weather_data = weather_response.json()
-        
-        weather_info = f"Current temperature: {weather_data['main']['temp']}°C\n"
-        weather_info += f"Weather conditions: {weather_data['weather'][0]['description']}\n"
-        weather_info += f"Humidity: {weather_data['main']['humidity']}%\n"
-        weather_info += f"Wind speed: {weather_data['wind']['speed']} m/s"
+        if weather_response.status_code == 200:
+            weather_data = weather_response.json()
+            forecast_url = weather_data['properties']['forecast']
+            forecast_response = requests.get(forecast_url)
+            if forecast_response.status_code == 200:
+                forecast_data = forecast_response.json()
+                current_period = forecast_data['properties']['periods'][0]
+                
+                weather_info = f"Temperature: {current_period['temperature']}°{current_period['temperatureUnit']}\n"
+                weather_info += f"Conditions: {current_period['shortForecast']}\n"
+                weather_info += f"Wind: {current_period['windSpeed']} {current_period['windDirection']}\n"
+                weather_info += f"Forecast: {current_period['detailedForecast']}"
+            else:
+                weather_info = "Weather forecast data unavailable"
+        else:
+            weather_info = "Weather data unavailable"
 
         return property_info, weather_info
     else:
@@ -83,7 +94,7 @@ def main():
 
     # Sidebar for address input
     st.sidebar.header("Property Information")
-    address = st.sidebar.text_input("Enter an address:")
+    address = st.sidebar.text_input("Enter an address (U.S. only for weather data):")
     if st.sidebar.button("Get Info"):
         property_info, weather_info = gather_info(address)
         st.session_state['property_info'] = property_info
