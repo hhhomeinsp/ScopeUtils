@@ -10,10 +10,6 @@ for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY", "RENTCAST_API_KEY"]:
     except KeyError:
         st.warning(f"Missing API key: {key}. Some features may be disabled.")
 
-import streamlit as st
-import requests
-from urllib.parse import quote
-
 def geocode_address(address, api_key):
     url = f"https://api.opencagedata.com/geocode/v1/json?q={quote(address)}&key={api_key}"
     response = requests.get(url)
