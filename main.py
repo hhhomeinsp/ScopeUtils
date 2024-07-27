@@ -4,6 +4,7 @@ import PyPDF2
 import openai
 import requests
 from datetime import datetime
+import io
 
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -11,7 +12,15 @@ openai.api_key = st.secrets["OPENAI_API_KEY"]
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
     try:
-        pdf_reader = PyPDF2.PdfReader(file)
+        # Read the file content
+        file_content = file.read()
+        
+        # Create a BytesIO object
+        pdf_file = io.BytesIO(file_content)
+        
+        # Create PDF reader object
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        
         text = ""
         for page in pdf_reader.pages:
             text += page.extract_text()
@@ -26,8 +35,8 @@ def extract_and_save_text_from_pdf(file):
             f.write(text)
         
         return text, filepath
-    except PyPDF2.errors.PdfReadError:
-        st.error("Error: The uploaded PDF file appears to be corrupted or in an unsupported format.")
+    except Exception as e:
+        st.error(f"Error processing PDF: {str(e)}")
         return None, None
 
 # Function to read text file
@@ -63,7 +72,7 @@ def gather_info(address):
 
 # Streamlit app
 def main():
-    st.title("Document Translator and Info Gatherer App")
+    st.title("Document Processor and Info Gatherer App")
 
     # Sidebar for address input
     st.sidebar.header("Property Information")
@@ -78,20 +87,21 @@ def main():
 
     with tab1:
         st.header("Document Upload & Translation")
-        file_type = st.radio("Select file type:", ("PDF", "Text"))
-        
-        if file_type == "PDF":
-            uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-        else:
-            uploaded_file = st.file_uploader("Choose a text file", type="txt")
+        uploaded_file = st.file_uploader("Choose a file (PDF or TXT)", type=["pdf", "txt"])
 
         if uploaded_file is not None:
-            if file_type == "PDF":
+            file_type = uploaded_file.type
+            if file_type == "application/pdf":
                 text, filepath = extract_and_save_text_from_pdf(uploaded_file)
                 if text and filepath:
                     st.success(f"PDF processed and saved as text file: {filepath}")
-            else:
+            elif file_type == "text/plain":
                 text = read_text_file(uploaded_file)
+                filepath = None
+                st.success("Text file processed successfully")
+            else:
+                st.error("Unsupported file type. Please upload a PDF or TXT file.")
+                text = None
                 filepath = None
             
             if text:
