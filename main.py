@@ -212,14 +212,32 @@ def main():
             st.write("Enter an address in the sidebar to get property information.")
 
     with tab4:
-        st.header("Weather Information")
-        if 'weather_info' in st.session_state:
-            if 'error' in st.session_state['weather_info']:
-                st.error(st.session_state['weather_info']['error'])
-            else:
-                st.write(st.session_state['weather_info'])
-        else:
-            st.write("Enter an address in the sidebar to get weather information.")
+        st.header("WeatherThe `KeyError` you're encountering indicates that the `RENTCAST_API_KEY` is not set in your Streamlit secrets. Ensure the key is correctly added to your secrets configuration. Here’s a step-by-step guide to resolve the issue and ensure your Streamlit app uses the RentCast API correctly.
 
-if __name__ == "__main__":
-    main()
+### Step-by-Step Guide
+
+#### 1. Setting Up Streamlit Secrets
+
+1. **For Streamlit Cloud**:
+   - Go to your Streamlit app's dashboard.
+   - Click on 'Manage app'.
+   - Navigate to the 'Secrets' section.
+   - Add the `RENTCAST_API_KEY`, `OPENAI_API_KEY`, and `OPENCAGE_API_KEY`.
+
+2. **For Local Development**:
+   - Create or edit the `.streamlit/secrets.toml` file in your project root directory:
+     ```toml
+     [secrets]
+     OPENAI_API_KEY = "your_openai_api_key_here"
+     OPENCAGE_API_KEY = "your_opencage_api_key_here"
+     RENTCAST_API_KEY = "your_rentcast_api_key_here"
+     ```
+
+#### 2. Verify Your Secrets Configuration
+To ensure your secrets are correctly configured, you can temporarily print them in your app:
+
+```python
+import streamlit as st
+
+# Print secrets to verify they are loaded correctly (remove this before deploying)
+st.write(st.secrets)
