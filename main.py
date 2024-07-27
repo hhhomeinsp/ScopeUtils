@@ -7,10 +7,11 @@ from datetime import datetime
 import io
 import chardet
 
-# Check for secrets and set up OpenAI API key
 try:
-    print(st.secrets)  # Temporarily print all available keys
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
+    # Temporarily print all available keys to debug
+    st.write("Available keys in st.secrets:", list(st.secrets.keys()))
+    
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
     RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
 except KeyError as e:
