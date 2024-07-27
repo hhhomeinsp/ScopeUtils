@@ -8,7 +8,7 @@ import io
 import chardet
 
 # Set up OpenAI API key using Streamlit secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
 RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
 
@@ -127,7 +127,7 @@ def gather_info(address):
             weather_data = weather_response.json()
             forecast_url = weather_data['properties']['forecast']
             forecast_response = requests.get(forecast_url)
-            if forecast_response.status_code == 200):
+            if forecast_response.status_code == 200:
                 forecast_data = forecast_response.json()
                 current_period = forecast_data['properties']['periods'][0]
                 
