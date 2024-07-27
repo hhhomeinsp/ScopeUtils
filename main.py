@@ -175,8 +175,19 @@ def gather_info(address):
                 forecast_data = forecast_response.json()
                 current_period = forecast_data['properties']['periods'][0]
                 
+                # Fetch hourly forecast to get relative humidity
+                hourly_forecast_url = weather_data['properties']['forecastHourly']
+                hourly_forecast_response = requests.get(hourly_forecast_url)
+                if hourly_forecast_response.status_code == 200:
+                    hourly_forecast_data = hourly_forecast_response.json()
+                    current_hour = hourly_forecast_data['properties']['periods'][0]
+                    relative_humidity = current_hour.get('relativeHumidity', {}).get('value', 'N/A')
+                else:
+                    relative_humidity = 'N/A'
+                
                 weather_info = {
                     "Temperature": f"{current_period['temperature']}°{current_period['temperatureUnit']}",
+                    "Relative Humidity": f"{relative_humidity}%" if relative_humidity != 'N/A' else 'N/A',
                     "Conditions": current_period['shortForecast'],
                     "Wind": f"{current_period['windSpeed']} {current_period['windDirection']}",
                     "Forecast": current_period['detailedForecast']
@@ -217,10 +228,11 @@ def main():
     st.sidebar.header("Property Information")
     address = st.sidebar.text_input("Enter an address (U.S. only for weather data):")
     if st.sidebar.button("Get Info"):
-        property_info, weather_info = gather_info(address)
-        st.session_state['property_info'] = property_info
-        st.session_state['weather_info'] = weather_info
-        st.session_state['active_tab'] = "Property & Weather Report"
+        with st.spinner("Fetching property and weather information..."):
+            property_info, weather_info = gather_info(address)
+            st.session_state['property_info'] = property_info
+            st.session_state['weather_info'] = weather_info
+            st.session_state['active_tab'] = "Property & Weather Report"
 
     tab1, tab2, tab3 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property & Weather Report"])
 
