@@ -96,24 +96,21 @@ def ai_qa_analysis(text):
     return response.choices[0].message.content
 
 @st.cache_data
-def get_property_info_from_rentcast(address):
-    # First, let's check if the API key is available
+def get_property_info_from_rentcast(street, city, state, zip_code):
     if "RENTCAST_API_KEY" not in st.secrets:
         st.error("Rentcast API key is not set in Streamlit secrets.")
         return {"error": "Rentcast API key is missing. Contact the administrator."}
 
     api_key = st.secrets["RENTCAST_API_KEY"]
     
-    # Log the API key (first few characters) for debugging
-    st.write(f"API Key (first 5 chars): {api_key[:5]}...")
-
+    # Format the address as per Rentcast API requirements
+    address = f"{street}, {city}, {state}, {zip_code}"
+    
+    # URL encode the address
+    encoded_address = quote(address)
+    
     try:
-        url = "https://api.rentcast.io/v1/properties"
-        
-        params = {
-            "address": address,
-            "limit": 1
-        }
+        url = f"https://api.rentcast.io/v1/properties?address={encoded_address}"
         
         headers = {
             "Accept": "application/json",
@@ -123,13 +120,12 @@ def get_property_info_from_rentcast(address):
         st.write(f"Requesting data from Rentcast API for address: {address}")
         st.write(f"Request URL: {url}")
         st.write(f"Request Headers: {headers}")
-        st.write(f"Request Params: {params}")
         
-        response = requests.get(url, params=params, headers=headers)
+        response = requests.get(url, headers=headers)
         
         st.write(f"Response status code: {response.status_code}")
         st.write(f"Response headers: {response.headers}")
-        st.write(f"Response content: {response.text}")
+        st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
 
         if response.status_code == 401:
             st.error("Authentication failed. Please check your Rentcast API key.")
@@ -212,11 +208,32 @@ def main():
     st.title("Document Processor and Info Gatherer App")
 
     st.sidebar.header("Property Information")
-    address = st.sidebar.text_input("Enter an address (U.S. only for weather data):")
-    if st.sidebar.button("Get Info"):
-        property_info, weather_info = gather_info(address)
-        st.session_state['property_info'] = property_info
-        st.session_state['weather_info'] = weather_info
+    street = st.sidebar.text_input("Street Address:")
+    city = st.sidebar.text_input("City:")
+    state = st.sidebar.text_input("State (2-letter code):")
+    zip_code = st.sidebar.text_input("ZIP Code:")
+    
+    if st.sidebar.button("Get Property Info"):
+        if street and city and state and zip_code:
+            with st.spinner("Fetching property information..."):
+                property_info = get_property_info_from_rentcast(street, city, state, zip_code)
+            st.session_state['property_info'] = property_info
+            
+            # Display property information
+            if 'error' in property_info:
+                st.error(property_info['error'])
+            else:
+                st.subheader("Property Information")
+                for key, value in property_info.items():
+                    if key != 'features':
+                        st.write(f"{key.replace('_', ' ').title()}: {value}")
+                
+                if property_info['features']:
+                    st.subheader("Property Features")
+                    for key, value in property_info['features'].items():
+                        st.write(f"{key.replace('_', ' ').title()}: {value}")
+        else:
+            st.sidebar.warning("Please fill in all address fields.")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property Info", "Weather Info"])
 
