@@ -103,13 +103,16 @@ def get_property_info_from_rentcast(street, city, state, zip_code):
 
     api_key = st.secrets["RENTCAST_API_KEY"]
     
-    # Format the address as per Rentcast API requirements
-    address = f"{street}, {city}, {state}, {zip_code}"
+    # List of address formats to try
+    address_formats = [
+        f"{street}, {city}, {state}, {zip_code}",
+        f"{street.replace('Hwy', 'Highway')}, {city}, {state}, {zip_code}",
+        f"{street}, {city}, {state} {zip_code}",
+        f"{street.replace('Hwy', 'Highway')}, {city}, {state} {zip_code}"
+    ]
     
-    # URL encode the address
-    encoded_address = quote(address)
-    
-    try:
+    for address in address_formats:
+        encoded_address = quote(address)
         url = f"https://api.rentcast.io/v1/properties?address={encoded_address}"
         
         headers = {
@@ -117,49 +120,40 @@ def get_property_info_from_rentcast(street, city, state, zip_code):
             "X-Api-Key": api_key
         }
 
-        st.write(f"Requesting data from Rentcast API for address: {address}")
+        st.write(f"Trying address format: {address}")
         st.write(f"Request URL: {url}")
-        st.write(f"Request Headers: {headers}")
         
-        response = requests.get(url, headers=headers)
+        try:
+            response = requests.get(url, headers=headers)
+            st.write(f"Response status code: {response.status_code}")
+            st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('properties'):
+                    property_info = data['properties'][0]
+                    return {
+                        "square_footage": property_info.get('squareFootage', 'N/A'),
+                        "year_built": property_info.get('yearBuilt', 'N/A'),
+                        "bedrooms": property_info.get('bedrooms', 'N/A'),
+                        "bathrooms": property_info.get('bathrooms', 'N/A'),
+                        "property_type": property_info.get('propertyType', 'N/A'),
+                        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
+                        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
+                        "lot_size": property_info.get('lotSize', 'N/A'),
+                        "zoning": property_info.get('zoning', 'N/A'),
+                        "features": property_info.get('features', {}),
+                        "owner_occupied": property_info.get('ownerOccupied', 'N/A')
+                    }
+            elif response.status_code == 400:
+                st.warning(f"Address format '{address}' not recognized. Trying next format...")
+            else:
+                response.raise_for_status()
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error making request to Rentcast API: {str(e)}")
         
-        st.write(f"Response status code: {response.status_code}")
-        st.write(f"Response headers: {response.headers}")
-        st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
-
-        if response.status_code == 401:
-            st.error("Authentication failed. Please check your Rentcast API key.")
-            return {"error": "Authentication failed. Please check your Rentcast API key."}
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        if not data.get('properties'):
-            return {"error": "No properties found for the given address"}
-
-        property_info = data['properties'][0]
-
-        return {
-            "square_footage": property_info.get('squareFootage', 'N/A'),
-            "year_built": property_info.get('yearBuilt', 'N/A'),
-            "bedrooms": property_info.get('bedrooms', 'N/A'),
-            "bathrooms": property_info.get('bathrooms', 'N/A'),
-            "property_type": property_info.get('propertyType', 'N/A'),
-            "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
-            "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
-            "lot_size": property_info.get('lotSize', 'N/A'),
-            "zoning": property_info.get('zoning', 'N/A'),
-            "features": property_info.get('features', {}),
-            "owner_occupied": property_info.get('ownerOccupied', 'N/A')
-        }
-
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error making request to Rentcast API: {str(e)}")
-        return {"error": f"Failed to retrieve property information: {str(e)}"}
-    except Exception as e:
-        st.error(f"Unexpected error in get_property_info_from_rentcast: {str(e)}")
-        return {"error": f"An unexpected error occurred: {str(e)}"}
+    return {"error": "Failed to retrieve property information for all attempted address formats."}
 
 # Function to gather property and weather information
 @st.cache_data
