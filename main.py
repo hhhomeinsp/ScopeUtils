@@ -6,6 +6,7 @@ import requests
 from datetime import datetime
 import io
 import chardet
+from bs4 import BeautifulSoup
 
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -81,11 +82,44 @@ def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are an expert in analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights.  Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
+            {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
         ]
     )
     return response.choices[0].message.content
+
+# Function to scrape property information from Zillow
+def get_property_info_from_zillow(address):
+    try:
+        formatted_address = address.replace(' ', '-')
+        url = f"https://www.zillow.com/homedetails/{formatted_address}/"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            return {"error": "Failed to retrieve property information"}
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Example extraction logic (this may need to be adapted based on the actual HTML structure of the website)
+        try:
+            square_footage = soup.find("span", {"class": "ds-bed-bath-living-area"}).text
+            year_built = soup.find("span", text="Year Built").find_next("span").text
+            stories = soup.find("span", text="Stories").find_next("span").text
+
+            return {
+                "square_footage": square_footage,
+                "year_built": year_built,
+                "stories": stories
+            }
+        except AttributeError:
+            return {"error": "Could not find property information"}
+
+    except Exception as e:
+        return {"error": str(e)}
 
 # Function to gather property and weather information
 def gather_info(address):
@@ -97,15 +131,9 @@ def gather_info(address):
     if geocode_data['results']:
         lat = geocode_data['results'][0]['geometry']['lat']
         lon = geocode_data['results'][0]['geometry']['lng']
-        
-        # Use OpenAI to generate property information
-        property_info = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an AI assistant tasked with estimating property information."},
-                {"role": "user", "content": f"Based on the address '{address}', estimate the square footage, year built, and number of stories for the property. Provide reasonable estimates based on the location and surrounding area."}
-            ]
-        ).choices[0].message.content
+
+        # Get property information from Zillow
+        property_info = get_property_info_from_zillow(address)
 
         # Get weather data from National Weather Service API
         weather_url = f"https://api.weather.gov/points/{lat},{lon}"
@@ -129,7 +157,7 @@ def gather_info(address):
 
         return property_info, weather_info
     else:
-        return "Location not found", "Weather data unavailable"
+        return {"error": "Location not found"}, {"error": "Weather data unavailable"}
 
 # Streamlit app
 def main():
@@ -195,14 +223,20 @@ def main():
     with tab3:
         st.header("Property Information")
         if 'property_info' in st.session_state:
-            st.write(st.session_state['property_info'])
+            if 'error' in st.session_state['property_info']:
+                st.error(st.session_state['property_info']['error'])
+            else:
+                st.write(st.session_state['property_info'])
         else:
             st.write("Enter an address in the sidebar to get property information.")
 
     with tab4:
         st.header("Weather Information")
         if 'weather_info' in st.session_state:
-            st.write(st.session_state['weather_info'])
+            if 'error' in st.session_state['weather_info']:
+                st.error(st.session_state['weather_info']['error'])
+            else:
+                st.write(st.session_state['weather_info'])
         else:
             st.write("Enter an address in the sidebar to get weather information.")
 
