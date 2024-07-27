@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 from urllib.parse import quote
-import json
 
 # Initialize API keys
 api_keys = {}
@@ -33,10 +32,15 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
         "X-Api-Key": rentcast_api_key
     }
 
-    # Construct the address and the URL
-    address = f"{street}, {city}, {state} {zip_code}"
+    # Construct the address in the required format
+    address = f"{street}, {city}, {state}, {zip_code}"
     encoded_address = quote(address)
     url = f"{base_url}?address={encoded_address}"
+
+    # Debugging information
+    st.write(f"Encoded address: {encoded_address}")
+    st.write(f"Request URL: {url}")
+    st.write(f"Request Headers: {headers}")
 
     try:
         response = requests.get(url, headers=headers)
@@ -46,17 +50,7 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
         if response_data.get('properties'):
             property_info = response_data['properties'][0]
         else:
-            # If specific address fails, try broader search
-            url = f"{base_url}?city={quote(city)}&state={quote(state)}&limit=1"
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            response_data = response.json()
-
-            if response_data.get('properties'):
-                property_info = response_data['properties'][0]
-                st.warning("Exact property not found. Showing information for a similar property in the area.")
-            else:
-                return {"error": "No property information found for the given location."}
+            return {"error": "No property information found for the given location."}
 
         # Extract and return relevant information
         return {
@@ -77,6 +71,7 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
         }
 
     except requests.exceptions.RequestException as e:
+        st.error(f"Failed to retrieve property information: {str(e)}")
         return {"error": f"Failed to retrieve property information: {str(e)}"}
 
 def main():
