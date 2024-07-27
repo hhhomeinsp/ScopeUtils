@@ -91,14 +91,18 @@ def ai_qa_analysis(text):
 # Function to scrape property information from Zillow
 def get_property_info_from_zillow(address):
     try:
-        formatted_address = address.replace(' ', '-')
+        formatted_address = address.replace(' ', '-').replace(',', '')
         url = f"https://www.zillow.com/homedetails/{formatted_address}/"
-        
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
 
         response = requests.get(url, headers=headers)
+        st.write(f"Response Status Code: {response.status_code}")
+        st.write(f"Response URL: {response.url}")
+        st.write(f"Response Content Snippet: {response.text[:500]}")
+
         if response.status_code != 200:
             return {"error": "Failed to retrieve property information"}
 
