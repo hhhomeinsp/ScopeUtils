@@ -125,7 +125,7 @@ def gather_info(address):
             weather_data = weather_response.json()
             forecast_url = weather_data['properties']['forecast']
             forecast_response = requests.get(forecast_url)
-            if forecast_response.status_code == 200:
+            if forecast_response.status_code == 200):
                 forecast_data = forecast_response.json()
                 current_period = forecast_data['properties']['periods'][0]
                 
@@ -202,5 +202,24 @@ def main():
             st.write("Please upload a valid document in the 'Document Upload & Translation' tab first.")
 
     with tab3:
-        st.headerYour updated `main.py` file appears correct. However, you might still be encountering the `KeyError` because the `RENTCAST_API_KEY` isn't properly set up in Streamlit secrets. Let's ensure this is set up correctly and verify it.
+        st.header("Property Information")
+        if 'property_info' in st.session_state:
+            if 'error' in st.session_state['property_info']:
+                st.error(st.session_state['property_info']['error'])
+            else:
+                st.write(st.session_state['property_info'])
+        else:
+            st.write("Enter an address in the sidebar to get property information.")
 
+    with tab4:
+        st.header("Weather Information")
+        if 'weather_info' in st.session_state:
+            if 'error' in st.session_state['weather_info']:
+                st.error(st.session_state['weather_info']['error'])
+            else:
+                st.write(st.session_state['weather_info'])
+        else:
+            st.write("Enter an address in the sidebar to get weather information.")
+
+if __name__ == "__main__":
+    main()
