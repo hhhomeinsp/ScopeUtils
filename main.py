@@ -8,27 +8,31 @@ from datetime import datetime
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Function to extract text from PDF
-def extract_text_from_pdf(file):
+# Function to extract text from PDF and save as txt
+def extract_and_save_text_from_pdf(file):
     try:
         pdf_reader = PyPDF2.PdfReader(file)
         text = ""
         for page in pdf_reader.pages:
             text += page.extract_text()
-        return text
+        
+        # Create Reports folder if it doesn't exist
+        os.makedirs("Reports", exist_ok=True)
+        
+        # Save text to file
+        filename = f"{file.name.split('.')[0]}.txt"
+        filepath = os.path.join("Reports", filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(text)
+        
+        return text, filepath
     except PyPDF2.errors.PdfReadError:
         st.error("Error: The uploaded PDF file appears to be corrupted or in an unsupported format.")
-        return None
+        return None, None
 
 # Function to read text file
 def read_text_file(file):
     return file.getvalue().decode("utf-8")
-
-# Function to save text to file
-def save_text_to_file(text, filename):
-    os.makedirs("reports", exist_ok=True)
-    with open(os.path.join("reports", filename), "w", encoding="utf-8") as f:
-        f.write(text)
 
 # Function to translate text
 def translate_text(text, target_language):
@@ -83,14 +87,16 @@ def main():
 
         if uploaded_file is not None:
             if file_type == "PDF":
-                text = extract_text_from_pdf(uploaded_file)
+                text, filepath = extract_and_save_text_from_pdf(uploaded_file)
+                if text and filepath:
+                    st.success(f"PDF processed and saved as text file: {filepath}")
             else:
                 text = read_text_file(uploaded_file)
+                filepath = None
             
             if text:
-                filename = f"{uploaded_file.name.split('.')[0]}.txt"
-                save_text_to_file(text, filename)
-                st.success(f"File processed and saved as {filename} in the 'reports' folder")
+                st.session_state['current_text'] = text
+                st.session_state['current_filepath'] = filepath
 
                 languages = [
                     "Spanish", "Chinese (Mandarin)", "Tagalog", "Vietnamese",
@@ -106,10 +112,10 @@ def main():
 
     with tab2:
         st.header("AI QA Analysis")
-        if uploaded_file is not None and text:
+        if 'current_text' in st.session_state:
             if st.button("Perform AI QA Analysis"):
                 with st.spinner("Analyzing the document..."):
-                    qa_results = ai_qa_analysis(text)
+                    qa_results = ai_qa_analysis(st.session_state['current_text'])
                 st.subheader("AI QA Analysis Results:")
                 st.write(qa_results)
         else:
