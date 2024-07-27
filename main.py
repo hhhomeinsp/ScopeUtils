@@ -84,7 +84,7 @@ def read_text_file(file):
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -95,7 +95,7 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
@@ -154,7 +154,6 @@ def get_property_info_from_rapidapi(address, rapidapi_key):
     finally:
         conn.close()
 
-# Update the gather_info function to use the new get_property_info_from_rapidapi function
 def gather_info(address):
     geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={OPENCAGE_API_KEY}"
     geocode_response = requests.get(geocode_url)
@@ -176,20 +175,36 @@ def gather_info(address):
                 forecast_data = forecast_response.json()
                 current_period = forecast_data['properties']['periods'][0]
                 
-                weather_info = f"Temperature: {current_period['temperature']}°{current_period['temperatureUnit']}\n"
-                weather_info += f"Conditions: {current_period['shortForecast']}\n"
-                weather_info += f"Wind: {current_period['windSpeed']} {current_period['windDirection']}\n"
-                weather_info += f"Forecast: {current_period['detailedForecast']}"
+                weather_info = {
+                    "Temperature": f"{current_period['temperature']}°{current_period['temperatureUnit']}",
+                    "Conditions": current_period['shortForecast'],
+                    "Wind": f"{current_period['windSpeed']} {current_period['windDirection']}",
+                    "Forecast": current_period['detailedForecast']
+                }
             else:
-                weather_info = "Weather forecast data unavailable"
+                weather_info = {"error": "Weather forecast data unavailable"}
         else:
-            weather_info = "Weather data unavailable"
+            weather_info = {"error": "Weather data unavailable"}
 
         return property_info, weather_info
     else:
         return {"error": "Location not found"}, {"error": "Weather data unavailable"}
 
-# Streamlit app
+def create_property_report(property_info, weather_info):
+    report = "# Property and Weather Report\n\n"
+    
+    report += "## Property Information\n"
+    for key, value in property_info.items():
+        if key != "error":
+            report += f"- **{key.replace('_', ' ').title()}:** {value}\n"
+    
+    report += "\n## Current Weather\n"
+    for key, value in weather_info.items():
+        if key != "error":
+            report += f"- **{key}:** {value}\n"
+    
+    return report
+
 def main():
     st.title("Document Processor and Info Gatherer App")
 
@@ -199,8 +214,9 @@ def main():
         property_info, weather_info = gather_info(address)
         st.session_state['property_info'] = property_info
         st.session_state['weather_info'] = weather_info
+        st.session_state['active_tab'] = "Property & Weather Report"
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property Info", "Weather Info"])
+    tab1, tab2, tab3 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property & Weather Report"])
 
     with tab1:
         st.header("Document Upload & Translation")
@@ -249,13 +265,16 @@ def main():
             st.write("Please upload a valid document in the 'Document Upload & Translation' tab first.")
 
     with tab3:
-        st.header("Property Information")
-        if 'property_info' in st.session_state:
-            if 'error' in st.session_state['property_info']:
-                st.error(st.session_state['property_info']['error'])
+        st.header("Property & Weather Report")
+        if 'property_info' in st.session_state and 'weather_info' in st.session_state:
+            if 'error' in st.session_state['property_info'] or 'error' in st.session_state['weather_info']:
+                if 'error' in st.session_state['property_info']:
+                    st.error(st.session_state['property_info']['error'])
+                if 'error' in st.session_state['weather_info']:
+                    st.error(st.session_state['weather_info']['error'])
             else:
-                for key, value in st.session_state['property_info'].items():
-                    st.write(f"{key.replace('_', ' ').title()}: {value}")
+                report = create_property_report(st.session_state['property_info'], st.session_state['weather_info'])
+                st.markdown(report)
                 
                 # Display location on a map if coordinates are available
                 if (st.session_state['property_info']['latitude'] != 'N/A' and 
@@ -264,17 +283,11 @@ def main():
                     st.map(data={"lat": [float(st.session_state['property_info']['latitude'])], 
                                  "lon": [float(st.session_state['property_info']['longitude'])]})
         else:
-            st.write("Enter an address in the sidebar to get property information.")
+            st.write("Enter an address in the sidebar to get property and weather information.")
 
-    with tab4:
-        st.header("Weather Information")
-        if 'weather_info' in st.session_state:
-            if 'error' in st.session_state['weather_info']:
-                st.error(st.session_state['weather_info']['error'])
-            else:
-                st.write(st.session_state['weather_info'])
-        else:
-            st.write("Enter an address in the sidebar to get weather information.")
+    # Automatically switch to the Property & Weather Report tab when info is fetched
+    if 'active_tab' in st.session_state and st.session_state['active_tab'] == "Property & Weather Report":
+        st.experimental_set_query_params(tab="Property & Weather Report")
 
 if __name__ == "__main__":
     main()
