@@ -59,7 +59,7 @@ def read_text_file(file):
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -70,7 +70,7 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
@@ -202,42 +202,5 @@ def main():
             st.write("Please upload a valid document in the 'Document Upload & Translation' tab first.")
 
     with tab3:
-        st.header("Property Information")
-        if 'property_info' in st.session_state:
-            if 'error' in st.session_state['property_info']:
-                st.error(st.session_state['property_info']['error'])
-            else:
-                st.write(st.session_state['property_info'])
-        else:
-            st.write("Enter an address in the sidebar to get property information.")
+        st.headerYour updated `main.py` file appears correct. However, you might still be encountering the `KeyError` because the `RENTCAST_API_KEY` isn't properly set up in Streamlit secrets. Let's ensure this is set up correctly and verify it.
 
-    with tab4:
-        st.header("WeatherThe `KeyError` you're encountering indicates that the `RENTCAST_API_KEY` is not set in your Streamlit secrets. Ensure the key is correctly added to your secrets configuration. Here’s a step-by-step guide to resolve the issue and ensure your Streamlit app uses the RentCast API correctly.
-
-### Step-by-Step Guide
-
-#### 1. Setting Up Streamlit Secrets
-
-1. **For Streamlit Cloud**:
-   - Go to your Streamlit app's dashboard.
-   - Click on 'Manage app'.
-   - Navigate to the 'Secrets' section.
-   - Add the `RENTCAST_API_KEY`, `OPENAI_API_KEY`, and `OPENCAGE_API_KEY`.
-
-2. **For Local Development**:
-   - Create or edit the `.streamlit/secrets.toml` file in your project root directory:
-     ```toml
-     [secrets]
-     OPENAI_API_KEY = "your_openai_api_key_here"
-     OPENCAGE_API_KEY = "your_opencage_api_key_here"
-     RENTCAST_API_KEY = "your_rentcast_api_key_here"
-     ```
-
-#### 2. Verify Your Secrets Configuration
-To ensure your secrets are correctly configured, you can temporarily print them in your app:
-
-```python
-import streamlit as st
-
-# Print secrets to verify they are loaded correctly (remove this before deploying)
-st.write(st.secrets)
