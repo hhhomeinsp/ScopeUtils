@@ -37,6 +37,11 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
     encoded_address = quote(address)
     url = f"{base_url}?address={encoded_address}"
 
+    # Debugging information
+    st.write(f"Encoded address: {encoded_address}")
+    st.write(f"Request URL: {url}")
+    st.write(f"Request Headers: {headers}")
+
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
