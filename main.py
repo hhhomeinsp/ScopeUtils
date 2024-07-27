@@ -7,15 +7,12 @@ from datetime import datetime
 import io
 import chardet
 
-try:
-    # Temporarily print all available keys to debug
-    st.write("Available keys in st.secrets:", list(st.secrets.keys()))
-    
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-    OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
-    RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
-except KeyError as e:
-    st.error(f"Missing API key: {e}")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENCAGE_API_KEY = os.environ.get("OPENCAGE_API_KEY")
+RENTCAST_API_KEY = os.environ.get("RENTCAST_API_KEY")
+
+if not all([OPENAI_API_KEY, OPENCAGE_API_KEY, RENTCAST_API_KEY]):
+    st.error("One or more required API keys are missing.")
     st.stop()
 
 # Function to extract text from PDF and save as txt
