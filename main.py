@@ -114,66 +114,54 @@ def geocode_address(address):
         st.error(f"Error geocoding address: {str(e)}")
     return None
 
-@st.cache_data
-def get_property_info_from_rentcast(street, city, state, zip_code):
-    if "RENTCAST_API_KEY" not in st.secrets:
-        st.error("Rentcast API key is not set in Streamlit secrets.")
-        return {"error": "Rentcast API key is missing. Contact the administrator."}
-
-    api_key = st.secrets["RENTCAST_API_KEY"]
+def get_property_info_fallback(street, city, state, zip_code):
+    # First, try to geocode the address
+    geocoded = geocode_address(f"{street}, {city}, {state}, {zip_code}")
     
-    # List of address formats to try
-    address_formats = [
-        f"{street}, {city}, {state}, {zip_code}",
-        f"{street.replace('Hwy', 'Highway')}, {city}, {state}, {zip_code}",
-        f"{street}, {city}, {state} {zip_code}",
-        f"{street.replace('Hwy', 'Highway')}, {city}, {state} {zip_code}",
-        f"{street.replace('Highway', 'Hwy')}, {city}, {state}, {zip_code}",
-        f"{street.replace('Highway', 'Hwy')}, {city}, {state} {zip_code}",
-        f"{street.split(',')[0]}, {city}, {state}, {zip_code}"  # Try without any secondary address info
-    ]
-    
-    for address in address_formats:
-        encoded_address = quote(address)
-        url = f"https://api.rentcast.io/v1/properties?address={encoded_address}"
+    if geocoded:
+        lat, lon = geocoded.split(',')
         
-        headers = {
-            "Accept": "application/json",
-            "X-Api-Key": api_key
-        }
-
-        st.write(f"Trying address format: {address}")
-        st.write(f"Request URL: {url}")
+        # Fetch basic location info using OpenStreetMap Nominatim API
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}"
         
         try:
-            response = requests.get(url, headers=headers)
-            st.write(f"Response status code: {response.status_code}")
-            st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            address = data.get('address', {})
+            
+            return {
+                "error": "Rentcast data unavailable. Showing basic location info.",
+                "latitude": lat,
+                "longitude": lon,
+                "city": address.get('city', city),
+                "state": address.get('state', state),
+                "country": address.get('country', 'USA'),
+                "postcode": address.get('postcode', zip_code)
+            }
+        except Exception as e:
+            st.error(f"Error fetching location info: {str(e)}")
+    
+    return {
+        "error": "Unable to retrieve property information. Please enter details manually.",
+        "latitude": "N/A",
+        "longitude": "N/A",
+        "city": city,
+        "state": state,
+        "country": "USA",
+        "postcode": zip_code
+    }
 
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('properties'):
-                    property_info = data['properties'][0]
-                    return {
-                        "square_footage": property_info.get('squareFootage', 'N/A'),
-                        "year_built": property_info.get('yearBuilt', 'N/A'),
-                        "bedrooms": property_info.get('bedrooms', 'N/A'),
-                        "bathrooms": property_info.get('bathrooms', 'N/A'),
-                        "property_type": property_info.get('propertyType', 'N/A'),
-                        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
-                        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
-                        "lot_size": property_info.get('lotSize', 'N/A'),
-                        "zoning": property_info.get('zoning', 'N/A'),
-                        "features": property_info.get('features', {}),
-                        "owner_occupied": property_info.get('ownerOccupied', 'N/A')
-                    }
-            elif response.status_code == 400:
-                st.warning(f"Address format '{address}' not recognized. Trying next format...")
-            else:
-                response.raise_for_status()
-
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error making request to Rentcast API: {str(e)}")
+# Update the main function to use the fallback
+def get_property_info(street, city, state, zip_code):
+    rentcast_info = get_property_info_from_rentcast(street, city, state, zip_code)
+    
+    if "error" in rentcast_info:
+        st.warning("Rentcast data unavailable. Fetching basic location info...")
+        return get_property_info_fallback(street, city, state, zip_code)
+    
+    return rentcast_info
     
     # If all address formats fail, try geocoding
     st.warning("All address formats failed. Attempting to geocode the address...")
@@ -263,24 +251,40 @@ def main():
     if st.sidebar.button("Get Property Info"):
         if street and city and state and zip_code:
             with st.spinner("Fetching property information..."):
-                property_info = get_property_info_from_rentcast(street, city, state, zip_code)
-            st.session_state['property_info'] = property_info
+                property_info = get_property_info(street, city, state, zip_code)
             
-            # Display property information
-            if 'error' in property_info:
-                st.error(property_info['error'])
-            else:
-                st.subheader("Property Information")
-                for key, value in property_info.items():
-                    if key != 'features':
-                        st.write(f"{key.replace('_', ' ').title()}: {value}")
-                
-                if property_info['features']:
-                    st.subheader("Property Features")
-                    for key, value in property_info['features'].items():
-                        st.write(f"{key.replace('_', ' ').title()}: {value}")
+            st.subheader("Property Information")
+            if "error" in property_info:
+                st.warning(property_info["error"])
+            
+            for key, value in property_info.items():
+                if key != "error" and key != "features":
+                    st.write(f"{key.replace('_', ' ').title()}: {value}")
+            
+            if "features" in property_info:
+                st.subheader("Property Features")
+                for key, value in property_info["features"].items():
+                    st.write(f"{key.replace('_', ' ').title()}: {value}")
+            
+            # Allow manual input if data is incomplete
+            st.subheader("Manual Input / Edit")
+            edited_info = {}
+            for key, value in property_info.items():
+                if key not in ["error", "features", "latitude", "longitude"]:
+                    edited_info[key] = st.text_input(f"{key.replace('_', ' ').title()}:", value)
+            
+            if st.button("Save Manual Input"):
+                st.session_state['property_info'] = {**property_info, **edited_info}
+                st.success("Property information updated!")
         else:
             st.sidebar.warning("Please fill in all address fields.")
+    
+    # Display saved property info
+    if 'property_info' in st.session_state:
+        st.subheader("Saved Property Information")
+        for key, value in st.session_state['property_info'].items():
+            if key not in ["error", "features"]:
+                st.write(f"{key.replace('_', ' ').title()}: {value}")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property Info", "Weather Info"])
 
