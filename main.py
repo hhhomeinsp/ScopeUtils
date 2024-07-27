@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import PyPDF2
+import pdfplumber
 import openai
 import requests
 from datetime import datetime
@@ -18,12 +18,14 @@ def extract_and_save_text_from_pdf(file):
         # Create a BytesIO object
         pdf_file = io.BytesIO(file_content)
         
-        # Create PDF reader object
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        
         text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+        with pdfplumber.open(pdf_file) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        
+        if not text.strip():
+            st.warning("No text could be extracted from the PDF. It might be scanned or image-based.")
+            return None, None
         
         # Create Reports folder if it doesn't exist
         os.makedirs("Reports", exist_ok=True)
