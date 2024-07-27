@@ -9,6 +9,7 @@ import chardet
 
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
+OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
