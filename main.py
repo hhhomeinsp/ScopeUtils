@@ -37,11 +37,6 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
     encoded_address = quote(address)
     url = f"{base_url}?address={encoded_address}"
 
-    # Debugging information
-    st.write(f"Encoded address: {encoded_address}")
-    st.write(f"Request URL: {url}")
-    st.write(f"Request Headers: {headers}")
-
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
@@ -96,7 +91,7 @@ def main():
             else:
                 with st.spinner("Fetching property information..."):
                     property_info = get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_key)
-                
+
                 if "error" in property_info:
                     st.error(property_info["error"])
                 else:
@@ -105,12 +100,12 @@ def main():
                     for key, value in property_info.items():
                         if key != "features":
                             st.write(f"{key.replace('_', ' ').title()}: {value}")
-                    
+
                     if property_info["features"]:
                         st.subheader("Property Features")
                         for key, value in property_info["features"].items():
                             st.write(f"{key.replace('_', ' ').title()}: {value}")
-                    
+
                     # Display location on a map if coordinates are available
                     if property_info['latitude'] != 'N/A' and property_info['longitude'] != 'N/A':
                         st.subheader("Property Location")
