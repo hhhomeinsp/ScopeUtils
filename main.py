@@ -1,18 +1,15 @@
 import streamlit as st
+import requests
+from urllib.parse import quote
 import os
 import pdfplumber
 import openai
-import requests
 from datetime import datetime
 import io
 import chardet
-from urllib.parse import quote
 
 # Initialize a dictionary to store available API keys
 api_keys = {}
-
-# Debug: Print all available keys in st.secrets
-st.write("Available keys in st.secrets:", list(st.secrets.keys()))
 
 # Try to get each API key, storing them if available
 for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY", "RENTCAST_API_KEY"]:
@@ -29,7 +26,6 @@ if not all(key in api_keys for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY"]):
 # Set OpenAI API key
 openai.api_key = api_keys.get("OPENAI_API_KEY")
 
-# Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
     try:
         file_content = file.read()
@@ -56,7 +52,6 @@ def extract_and_save_text_from_pdf(file):
         st.error(f"Error processing PDF: {str(e)}")
         return None, None
 
-# Function to read text file
 def read_text_file(file):
     content = file.read()
     detected = chardet.detect(content)
@@ -73,10 +68,9 @@ def read_text_file(file):
     
     return content.decode('latin-1')
 
-# Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -84,10 +78,9 @@ def translate_text(text, target_language):
     )
     return response.choices[0].message.content
 
-# Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
@@ -96,11 +89,11 @@ def ai_qa_analysis(text):
     return response.choices[0].message.content
 
 def geocode_address(address):
-    if "OPENCAGE_API_KEY" not in st.secrets:
+    if "OPENCAGE_API_KEY" not in api_keys:
         st.error("OpenCage API key is not set in Streamlit secrets.")
         return None
 
-    api_key = st.secrets["OPENCAGE_API_KEY"]
+    api_key = api_keys["OPENCAGE_API_KEY"]
     url = f"https://api.opencagedata.com/geocode/v1/json?q={quote(address)}&key={api_key}"
 
     try:
@@ -114,14 +107,103 @@ def geocode_address(address):
         st.error(f"Error geocoding address: {str(e)}")
     return None
 
+@st.cache_data
+def get_property_info_from_rentcast(street, city, state, zip_code):
+    if "RENTCAST_API_KEY" not in api_keys:
+        return {"error": "Rentcast API key is missing. Property information is unavailable."}
+
+    api_key = api_keys["RENTCAST_API_KEY"]
+    
+    address_formats = [
+        f"{street}, {city}, {state}, {zip_code}",
+        f"{street.replace('Hwy', 'Highway')}, {city}, {state}, {zip_code}",
+        f"{street}, {city}, {state} {zip_code}",
+        f"{street.replace('Hwy', 'Highway')}, {city}, {state} {zip_code}",
+        f"{street.replace('Highway', 'Hwy')}, {city}, {state}, {zip_code}",
+        f"{street.replace('Highway', 'Hwy')}, {city}, {state} {zip_code}",
+        f"{street.split(',')[0]}, {city}, {state}, {zip_code}"
+    ]
+    
+    for address in address_formats:
+        encoded_address = quote(address)
+        url = f"https://api.rentcast.io/v1/properties?address={encoded_address}"
+        
+        headers = {
+            "Accept": "application/json",
+            "X-Api-Key": api_key
+        }
+
+        st.write(f"Trying address format: {address}")
+        st.write(f"Request URL: {url}")
+        
+        try:
+            response = requests.get(url, headers=headers)
+            st.write(f"Response status code: {response.status_code}")
+            st.write(f"Response content: {response.text[:500]}...")
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('properties'):
+                    property_info = data['properties'][0]
+                    return {
+                        "square_footage": property_info.get('squareFootage', 'N/A'),
+                        "year_built": property_info.get('yearBuilt', 'N/A'),
+                        "bedrooms": property_info.get('bedrooms', 'N/A'),
+                        "bathrooms": property_info.get('bathrooms', 'N/A'),
+                        "property_type": property_info.get('propertyType', 'N/A'),
+                        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
+                        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
+                        "lot_size": property_info.get('lotSize', 'N/A'),
+                        "zoning": property_info.get('zoning', 'N/A'),
+                        "features": property_info.get('features', {}),
+                        "owner_occupied": property_info.get('ownerOccupied', 'N/A')
+                    }
+            elif response.status_code == 400:
+                st.warning(f"Address format '{address}' not recognized. Trying next format...")
+            else:
+                response.raise_for_status()
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error making request to Rentcast API: {str(e)}")
+    
+    st.warning("All address formats failed. Attempting to geocode the address...")
+    geocoded = geocode_address(f"{street}, {city}, {state}, {zip_code}")
+    if geocoded:
+        url = f"https://api.rentcast.io/v1/properties?address={geocoded}"
+        st.write(f"Trying geocoded coordinates: {geocoded}")
+        st.write(f"Request URL: {url}")
+        try:
+            response = requests.get(url, headers=headers)
+            st.write(f"Response status code: {response.status_code}")
+            st.write(f"Response content: {response.text[:500]}...")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('properties'):
+                    property_info = data['properties'][0]
+                    return {
+                        "square_footage": property_info.get('squareFootage', 'N/A'),
+                        "year_built": property_info.get('yearBuilt', 'N/A'),
+                        "bedrooms": property_info.get('bedrooms', 'N/A'),
+                        "bathrooms": property_info.get('bathrooms', 'N/A'),
+                        "property_type": property_info.get('propertyType', 'N/A'),
+                        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
+                        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
+                        "lot_size": property_info.get('lotSize', 'N/A'),
+                        "zoning": property_info.get('zoning', 'N/A'),
+                        "features": property_info.get('features', {}),
+                        "owner_occupied": property_info.get('ownerOccupied', 'N/A')
+                    }
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error making request to Rentcast API with geocoded coordinates: {str(e)}")
+    
+    return {"error": "Failed to retrieve property information for all attempted address formats and geocoding."}
+
 def get_property_info_fallback(street, city, state, zip_code):
-    # First, try to geocode the address
     geocoded = geocode_address(f"{street}, {city}, {state}, {zip_code}")
     
     if geocoded:
         lat, lon = geocoded.split(',')
         
-        # Fetch basic location info using OpenStreetMap Nominatim API
         url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}"
         
         try:
@@ -153,7 +235,6 @@ def get_property_info_fallback(street, city, state, zip_code):
         "postcode": zip_code
     }
 
-# Update the main function to use the fallback
 def get_property_info(street, city, state, zip_code):
     rentcast_info = get_property_info_from_rentcast(street, city, state, zip_code)
     
@@ -162,83 +243,7 @@ def get_property_info(street, city, state, zip_code):
         return get_property_info_fallback(street, city, state, zip_code)
     
     return rentcast_info
-    
-    # If all address formats fail, try geocoding
-    st.warning("All address formats failed. Attempting to geocode the address...")
-    geocoded = geocode_address(f"{street}, {city}, {state}, {zip_code}")
-    if geocoded:
-        url = f"https://api.rentcast.io/v1/properties?address={geocoded}"
-        st.write(f"Trying geocoded coordinates: {geocoded}")
-        st.write(f"Request URL: {url}")
-        try:
-            response = requests.get(url, headers=headers)
-            st.write(f"Response status code: {response.status_code}")
-            st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('properties'):
-                    property_info = data['properties'][0]
-                    return {
-                        "square_footage": property_info.get('squareFootage', 'N/A'),
-                        "year_built": property_info.get('yearBuilt', 'N/A'),
-                        "bedrooms": property_info.get('bedrooms', 'N/A'),
-                        "bathrooms": property_info.get('bathrooms', 'N/A'),
-                        "property_type": property_info.get('propertyType', 'N/A'),
-                        "last_sale_date": property_info.get('lastSaleDate', 'N/A'),
-                        "last_sale_price": property_info.get('lastSalePrice', 'N/A'),
-                        "lot_size": property_info.get('lotSize', 'N/A'),
-                        "zoning": property_info.get('zoning', 'N/A'),
-                        "features": property_info.get('features', {}),
-                        "owner_occupied": property_info.get('ownerOccupied', 'N/A')
-                    }
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error making request to Rentcast API with geocoded coordinates: {str(e)}")
-    
-    return {"error": "Failed to retrieve property information for all attempted address formats and geocoding."}
 
-# Function to gather property and weather information
-@st.cache_data
-def gather_info(address):
-    if "OPENCAGE_API_KEY" not in api_keys:
-        return {"error": "OpenCage API key is missing"}, {"error": "Weather data unavailable"}
-
-    geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_keys['OPENCAGE_API_KEY']}"
-    try:
-        geocode_response = requests.get(geocode_url)
-        geocode_response.raise_for_status()
-        geocode_data = geocode_response.json()
-        
-        if geocode_data['results']:
-            lat = geocode_data['results'][0]['geometry']['lat']
-            lon = geocode_data['results'][0]['geometry']['lng']
-
-            property_info = get_property_info_from_rentcast(address)
-
-            weather_url = f"https://api.weather.gov/points/{lat},{lon}"
-            weather_response = requests.get(weather_url)
-            weather_response.raise_for_status()
-            weather_data = weather_response.json()
-            
-            forecast_url = weather_data['properties']['forecast']
-            forecast_response = requests.get(forecast_url)
-            forecast_response.raise_for_status()
-            forecast_data = forecast_response.json()
-            
-            current_period = forecast_data['properties']['periods'][0]
-            
-            weather_info = f"Temperature: {current_period['temperature']}°{current_period['temperatureUnit']}\n"
-            weather_info += f"Conditions: {current_period['shortForecast']}\n"
-            weather_info += f"Wind: {current_period['windSpeed']} {current_period['windDirection']}\n"
-            weather_info += f"Forecast: {current_period['detailedForecast']}"
-
-            return property_info, weather_info
-        else:
-            return {"error": "Location not found"}, {"error": "Weather data unavailable"}
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error fetching data: {str(e)}")
-        return {"error": "Failed to fetch location or weather data"}, {"error": "Weather data unavailable"}
-
-# Streamlit app
 def main():
     st.title("Document Processor and Info Gatherer App")
 
@@ -247,44 +252,14 @@ def main():
     city = st.sidebar.text_input("City:")
     state = st.sidebar.text_input("State (2-letter code):")
     zip_code = st.sidebar.text_input("ZIP Code:")
-    
+
     if st.sidebar.button("Get Property Info"):
         if street and city and state and zip_code:
             with st.spinner("Fetching property information..."):
                 property_info = get_property_info(street, city, state, zip_code)
-            
-            st.subheader("Property Information")
-            if "error" in property_info:
-                st.warning(property_info["error"])
-            
-            for key, value in property_info.items():
-                if key != "error" and key != "features":
-                    st.write(f"{key.replace('_', ' ').title()}: {value}")
-            
-            if "features" in property_info:
-                st.subheader("Property Features")
-                for key, value in property_info["features"].items():
-                    st.write(f"{key.replace('_', ' ').title()}: {value}")
-            
-            # Allow manual input if data is incomplete
-            st.subheader("Manual Input / Edit")
-            edited_info = {}
-            for key, value in property_info.items():
-                if key not in ["error", "features", "latitude", "longitude"]:
-                    edited_info[key] = st.text_input(f"{key.replace('_', ' ').title()}:", value)
-            
-            if st.button("Save Manual Input"):
-                st.session_state['property_info'] = {**property_info, **edited_info}
-                st.success("Property information updated!")
+            st.session_state['property_info'] = property_info
         else:
             st.sidebar.warning("Please fill in all address fields.")
-    
-    # Display saved property info
-    if 'property_info' in st.session_state:
-        st.subheader("Saved Property Information")
-        for key, value in st.session_state['property_info'].items():
-            if key not in ["error", "features"]:
-                st.write(f"{key.replace('_', ' ').title()}: {value}")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property Info", "Weather Info"])
 
