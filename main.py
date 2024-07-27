@@ -6,19 +6,16 @@ import requests
 from datetime import datetime
 import io
 import chardet
-from bs4 import BeautifulSoup
 
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
+REALTOR_API_KEY = st.secrets["REALTOR_API_KEY"]
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
     try:
-        # Read the file content
         file_content = file.read()
-        
-        # Create a BytesIO object
         pdf_file = io.BytesIO(file_content)
         
         text = ""
@@ -30,10 +27,8 @@ def extract_and_save_text_from_pdf(file):
             st.warning("No text could be extracted from the PDF. It might be scanned or image-based.")
             return None, None
         
-        # Create Reports folder if it doesn't exist
         os.makedirs("Reports", exist_ok=True)
         
-        # Save text to file
         filename = f"{file.name.split('.')[0]}.txt"
         filepath = os.path.join("Reports", filename)
         with open(filepath, "w", encoding="utf-8") as f:
@@ -47,29 +42,24 @@ def extract_and_save_text_from_pdf(file):
 # Function to read text file
 def read_text_file(file):
     content = file.read()
-    
-    # Try to detect the file encoding
     detected = chardet.detect(content)
     encoding = detected['encoding']
     
     try:
-        # Try to decode with the detected encoding
         return content.decode(encoding)
     except UnicodeDecodeError:
-        # If that fails, try some common encodings
         for enc in ['utf-8', 'latin-1', 'ascii']:
             try:
                 return content.decode(enc)
             except UnicodeDecodeError:
                 continue
     
-    # If all else fails, decode with 'latin-1' (which should never fail)
     return content.decode('latin-1')
 
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -80,7 +70,7 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4o",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
@@ -88,46 +78,38 @@ def ai_qa_analysis(text):
     )
     return response.choices[0].message.content
 
-# Function to scrape property information from Zillow
-def get_property_info_from_zillow(address):
+# Function to get property information from Realtor API
+def get_property_info_from_realtor(address):
     try:
-        formatted_address = address.replace(' ', '-').replace(',', '')
-        url = f"https://www.zillow.com/homedetails/{formatted_address}/"
-
+        # Format the address for the API request
+        url = f"https://api.realtor.com/v1/properties?address={address}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "Authorization": f"Bearer {REALTOR_API_KEY}"
         }
 
         response = requests.get(url, headers=headers)
-        st.write(f"Response Status Code: {response.status_code}")
-        st.write(f"Response URL: {response.url}")
-        st.write(f"Response Content Snippet: {response.text[:500]}")
-
         if response.status_code != 200:
+            st.write(f"Failed to retrieve property information: {response.status_code}")
+            st.write(response.json())
             return {"error": "Failed to retrieve property information"}
 
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Example extraction logic (this may need to be adapted based on the actual HTML structure of the website)
-        try:
-            square_footage = soup.find("span", {"class": "ds-bed-bath-living-area"}).text
-            year_built = soup.find("span", text="Year Built").find_next("span").text
-            stories = soup.find("span", text="Stories").find_next("span").text
+        data = response.json()
+        if not data['properties']:
+            return {"error": "No properties found"}
 
-            return {
-                "square_footage": square_footage,
-                "year_built": year_built,
-                "stories": stories
-            }
-        except AttributeError:
-            return {"error": "Could not find property information"}
+        property_info = data['properties'][0]
+
+        return {
+            "square_footage": property_info.get('building_size', {}).get('size', 'N/A'),
+            "year_built": property_info.get('year_built', 'N/A'),
+            "stories": property_info.get('stories', 'N/A')
+        }
 
     except Exception as e:
         return {"error": str(e)}
 
 # Function to gather property and weather information
 def gather_info(address):
-    # Use OpenCage Geocoding API
     geocode_url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={OPENCAGE_API_KEY}"
     geocode_response = requests.get(geocode_url)
     geocode_data = geocode_response.json()
@@ -136,10 +118,8 @@ def gather_info(address):
         lat = geocode_data['results'][0]['geometry']['lat']
         lon = geocode_data['results'][0]['geometry']['lng']
 
-        # Get property information from Zillow
-        property_info = get_property_info_from_zillow(address)
+        property_info = get_property_info_from_realtor(address)
 
-        # Get weather data from National Weather Service API
         weather_url = f"https://api.weather.gov/points/{lat},{lon}"
         weather_response = requests.get(weather_url)
         if weather_response.status_code == 200:
@@ -167,7 +147,6 @@ def gather_info(address):
 def main():
     st.title("Document Processor and Info Gatherer App")
 
-    # Sidebar for address input
     st.sidebar.header("Property Information")
     address = st.sidebar.text_input("Enter an address (U.S. only for weather data):")
     if st.sidebar.button("Get Info"):
@@ -175,7 +154,6 @@ def main():
         st.session_state['property_info'] = property_info
         st.session_state['weather_info'] = weather_info
 
-    # Main area with tabs
     tab1, tab2, tab3, tab4 = st.tabs(["Document Upload & Translation", "AI QA Analysis", "Property Info", "Weather Info"])
 
     with tab1:
