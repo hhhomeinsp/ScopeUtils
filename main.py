@@ -9,7 +9,8 @@ import chardet
 
 # Check for secrets and set up OpenAI API key
 try:
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    print(st.secrets)  # Temporarily print all available keys
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
     OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
     RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
 except KeyError as e:
