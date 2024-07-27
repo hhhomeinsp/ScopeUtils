@@ -10,7 +10,7 @@ import chardet
 # Set up OpenAI API key using Streamlit secrets
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
-REALTOR_API_KEY = st.secrets["REALTOR_API_KEY"]
+RENTCAST_API_KEY = st.secrets["RENTCAST_API_KEY"]
 
 # Function to extract text from PDF and save as txt
 def extract_and_save_text_from_pdf(file):
@@ -78,13 +78,12 @@ def ai_qa_analysis(text):
     )
     return response.choices[0].message.content
 
-# Function to get property information from Realtor API
-def get_property_info_from_realtor(address):
+# Function to get property information from RentCast API
+def get_property_info_from_rentcast(address):
     try:
-        # Format the address for the API request
-        url = f"https://api.realtor.com/v1/properties?address={address}"
+        url = f"https://api.rentcast.io/v1/properties?address={address}"
         headers = {
-            "Authorization": f"Bearer {REALTOR_API_KEY}"
+            "X-Api-Key": RENTCAST_API_KEY
         }
 
         response = requests.get(url, headers=headers)
@@ -100,8 +99,8 @@ def get_property_info_from_realtor(address):
         property_info = data['properties'][0]
 
         return {
-            "square_footage": property_info.get('building_size', {}).get('size', 'N/A'),
-            "year_built": property_info.get('year_built', 'N/A'),
+            "square_footage": property_info.get('squareFootage', 'N/A'),
+            "year_built": property_info.get('yearBuilt', 'N/A'),
             "stories": property_info.get('stories', 'N/A')
         }
 
@@ -118,7 +117,7 @@ def gather_info(address):
         lat = geocode_data['results'][0]['geometry']['lat']
         lon = geocode_data['results'][0]['geometry']['lng']
 
-        property_info = get_property_info_from_realtor(address)
+        property_info = get_property_info_from_rentcast(address)
 
         weather_url = f"https://api.weather.gov/points/{lat},{lon}"
         weather_response = requests.get(weather_url)
