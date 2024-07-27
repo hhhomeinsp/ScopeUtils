@@ -76,7 +76,7 @@ def read_text_file(file):
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
@@ -87,7 +87,7 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are an expert analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights. Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
             {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
@@ -95,7 +95,6 @@ def ai_qa_analysis(text):
     )
     return response.choices[0].message.content
 
-# Function to get property information from RentCast API
 @st.cache_data
 def get_property_info_from_rentcast(address):
     if "RENTCAST_API_KEY" not in api_keys:
@@ -115,13 +114,33 @@ def get_property_info_from_rentcast(address):
             "X-Api-Key": api_keys["RENTCAST_API_KEY"]
         }
 
+        st.write(f"Requesting data from Rentcast API for address: {address}")  # Debug log
+        st.write(f"Encoded address: {encoded_address}")  # Debug log
+        
         response = requests.get(url, headers=headers)
+        
+        st.write(f"Response status code: {response.status_code}")  # Debug log
+        st.write(f"Response content: {response.text}")  # Debug log
+
+        if response.status_code == 400:
+            return {
+                "error": "The address provided was not recognized by the Rentcast API. Please check the address format and try again.",
+                "square_footage": "N/A",
+                "year_built": "N/A",
+                "stories": "N/A"
+            }
+
         response.raise_for_status()
 
         data = response.json()
 
         if not data.get('properties'):
-            return {"error": "No properties found for the given address"}
+            return {
+                "error": "No properties found for the given address",
+                "square_footage": "N/A",
+                "year_built": "N/A",
+                "stories": "N/A"
+            }
 
         property_info = data['properties'][0]
 
@@ -133,13 +152,28 @@ def get_property_info_from_rentcast(address):
 
     except requests.exceptions.RequestException as e:
         st.error(f"Error making request to Rentcast API: {str(e)}")
-        return {"error": f"Failed to retrieve property information: {str(e)}"}
+        return {
+            "error": f"Failed to retrieve property information: {str(e)}",
+            "square_footage": "N/A",
+            "year_built": "N/A",
+            "stories": "N/A"
+        }
     except KeyError as e:
         st.error(f"Unexpected response format from Rentcast API: {str(e)}")
-        return {"error": "Unexpected response format from Rentcast API"}
+        return {
+            "error": "Unexpected response format from Rentcast API",
+            "square_footage": "N/A",
+            "year_built": "N/A",
+            "stories": "N/A"
+        }
     except Exception as e:
         st.error(f"Unexpected error in get_property_info_from_rentcast: {str(e)}")
-        return {"error": f"An unexpected error occurred: {str(e)}"}
+        return {
+            "error": f"An unexpected error occurred: {str(e)}",
+            "square_footage": "N/A",
+            "year_built": "N/A",
+            "stories": "N/A"
+        }
 
 # Function to gather property and weather information
 @st.cache_data
@@ -247,8 +281,9 @@ def main():
         if 'property_info' in st.session_state:
             if 'error' in st.session_state['property_info']:
                 st.error(st.session_state['property_info']['error'])
-            else:
-                st.write(st.session_state['property_info'])
+            st.write(f"Square Footage: {st.session_state['property_info'].get('square_footage', 'N/A')}")
+            st.write(f"Year Built: {st.session_state['property_info'].get('year_built', 'N/A')}")
+            st.write(f"Stories: {st.session_state['property_info'].get('stories', 'N/A')}")
         else:
             st.write("Enter an address in the sidebar to get property information.")
 
