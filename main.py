@@ -32,8 +32,8 @@ def get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_
         "X-Api-Key": rentcast_api_key
     }
 
-    # Ensure correct address format: "Street, City, State, Zip"
-    address = f"{street.strip()}, {city.strip()}, {state.strip()}, {zip_code.strip()}"
+    # Ensure correct address format: "Street, City, State Zip"
+    address = f"{street.strip()}, {city.strip()}, {state.strip()} {zip_code.strip()}"
     encoded_address = quote(address)
     url = f"{base_url}?address={encoded_address}"
 
