@@ -2,22 +2,27 @@ import streamlit as st
 import requests
 from urllib.parse import quote
 
+# Initialize API keys
+api_keys = {}
+for key in ["OPENAI_API_KEY", "OPENCAGE_API_KEY", "RENTCAST_API_KEY"]:
+    try:
+        api_keys[key] = st.secrets[key]
+    except KeyError:
+        st.warning(f"Missing API key: {key}. Some features may be disabled.")
+
 @st.cache_data
-def get_property_info_from_rentcast(street, city, state, zip_code):
-    if "RENTCAST_API_KEY" not in api_keys:
+def get_property_info_from_rentcast(street, city, state, zip_code, api_key):
+    if not api_key:
         return {"error": "Rentcast API key is missing. Property information is unavailable."}
 
-    api_key = api_keys["RENTCAST_API_KEY"]
-    
-    # Format the address similarly to the web application URL
     address = f"{street}, {city}, {state}, {zip_code}"
     encoded_address = quote(address)
     
-    url = f"https://api.rentcast.io/v1/properties"
+    url = "https://api.rentcast.io/v1/properties"
     
     params = {
         "address": encoded_address,
-        "type": "single-family"  # Adding this parameter based on the URL you provided
+        "type": "single-family"
     }
     
     headers = {
@@ -34,7 +39,7 @@ def get_property_info_from_rentcast(street, city, state, zip_code):
         response = requests.get(url, params=params, headers=headers)
         st.write(f"Response status code: {response.status_code}")
         st.write(f"Response headers: {response.headers}")
-        st.write(f"Response content: {response.text[:500]}...")  # Truncate long responses
+        st.write(f"Response content: {response.text[:500]}...")
 
         if response.status_code == 200:
             data = response.json()
@@ -81,21 +86,25 @@ def main():
 
     if st.button("Get Property Info"):
         if street and city and state and zip_code:
-            with st.spinner("Fetching property information..."):
-                property_info = get_property_info_from_rentcast(street, city, state, zip_code)
-            
-            if "error" in property_info:
-                st.error(property_info["error"])
+            rentcast_api_key = api_keys.get("RENTCAST_API_KEY")
+            if not rentcast_api_key:
+                st.error("Rentcast API key is missing. Cannot fetch property information.")
             else:
-                st.success("Property information retrieved successfully!")
-                for key, value in property_info.items():
-                    if key != "features":
-                        st.write(f"{key.replace('_', ' ').title()}: {value}")
+                with st.spinner("Fetching property information..."):
+                    property_info = get_property_info_from_rentcast(street, city, state, zip_code, rentcast_api_key)
                 
-                if property_info["features"]:
-                    st.subheader("Property Features")
-                    for key, value in property_info["features"].items():
-                        st.write(f"{key.replace('_', ' ').title()}: {value}")
+                if "error" in property_info:
+                    st.error(property_info["error"])
+                else:
+                    st.success("Property information retrieved successfully!")
+                    for key, value in property_info.items():
+                        if key != "features":
+                            st.write(f"{key.replace('_', ' ').title()}: {value}")
+                    
+                    if property_info["features"]:
+                        st.subheader("Property Features")
+                        for key, value in property_info["features"].items():
+                            st.write(f"{key.replace('_', ' ').title()}: {value}")
         else:
             st.warning("Please fill in all address fields.")
 
