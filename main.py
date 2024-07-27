@@ -48,9 +48,9 @@ def read_text_file(file):
 # Function to translate text
 def translate_text(text, target_language):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
-            {"role": "system", "content": f"You are a translator. Translate the following text to {target_language}."},
+            {"role": "system", "content": f"You are a language translator. Translate the following text to {target_language}."},
             {"role": "user", "content": text}
         ]
     )
@@ -59,10 +59,10 @@ def translate_text(text, target_language):
 # Function for AI QA analysis
 def ai_qa_analysis(text):
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are an AI assistant tasked with analyzing a report. Provide a brief summary and key insights from the text."},
-            {"role": "user", "content": f"Please analyze the following text and provide a summary and key insights:\n\n{text}"}
+            {"role": "system", "content": "You are an expert in analyst able to QA home inspection reports and provide feedback on any errors such as grammatical, spelling, contradictions, or possible oversights.  Your goal is to improve the quality, accuracy, and readability of the home inspection report to improve the quality of the report and reduce liability."},
+            {"role": "user", "content": f"Please analyze the following text and provide a summary of any errors:\n\n{text}"}
         ]
     )
     return response.choices[0].message.content
